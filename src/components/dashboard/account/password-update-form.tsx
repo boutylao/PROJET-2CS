@@ -1,19 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import * as React from 'react';
 import {
-  Card, CardHeader, CardContent, CardActions,
-  FormControl, InputLabel, OutlinedInput, Button, Divider, Grid, Typography
+  Card, CardHeader, CardContent, Divider, Grid, FormControl,
+  InputLabel, OutlinedInput, CardActions, Button, Box
 } from '@mui/material';
 
 export function PasswordUpdateForm(): React.JSX.Element {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = React.useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
-
-  const [message, setMessage] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -24,91 +22,90 @@ export function PasswordUpdateForm(): React.JSX.Element {
     e.preventDefault();
 
     if (formData.newPassword !== formData.confirmPassword) {
-      setMessage("❌ Les mots de passe ne correspondent pas.");
+      alert("Le nouveau mot de passe et la confirmation ne correspondent pas.");
       return;
     }
 
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const localUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const username = localUser?.username;
 
     try {
       const res = await fetch('http://localhost:8099/api/user/password', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: user.username,
+          username,
           currentPassword: formData.currentPassword,
-          newPassword: formData.newPassword,
-        })
+          newPassword: formData.newPassword
+        }),
       });
 
-      if (res.ok) {
-        setMessage("✅ Mot de passe mis à jour !");
-      } else {
-        const err = await res.text();
-        setMessage("❌ Erreur : " + err);
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || 'Erreur serveur');
       }
-    } catch (error) {
-      console.error(error);
-      setMessage("❌ Erreur lors de la mise à jour.");
+
+      alert("Mot de passe mis à jour !");
+      setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error: any) {
+      alert("Erreur: " + error.message);
     }
   };
 
   return (
     <form onSubmit={handleSubmit}>
-      <Card sx={{ mt: 3 }}>
-        <CardHeader title="🔒 Changer le mot de passe" />
+      <Card>
+        <CardHeader title="Changer le mot de passe" />
         <Divider />
         <CardContent>
           <Grid container spacing={3}>
-            <Grid item xs={12}>
+            <Grid item xs={12} md={6}>
               <FormControl fullWidth required>
                 <InputLabel htmlFor="currentPassword">Mot de passe actuel</InputLabel>
                 <OutlinedInput
                   id="currentPassword"
                   name="currentPassword"
                   type="password"
-                  label="Mot de passe actuel"
                   value={formData.currentPassword}
                   onChange={handleChange}
+                  label="Mot de passe actuel"
                 />
               </FormControl>
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} md={6}> </Grid>
+            <Grid item xs={12} md={6}>
               <FormControl fullWidth required>
                 <InputLabel htmlFor="newPassword">Nouveau mot de passe</InputLabel>
                 <OutlinedInput
                   id="newPassword"
                   name="newPassword"
                   type="password"
-                  label="Nouveau mot de passe"
                   value={formData.newPassword}
                   onChange={handleChange}
+                  label="Nouveau mot de passe"
                 />
               </FormControl>
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} md={6}>
               <FormControl fullWidth required>
-                <InputLabel htmlFor="confirmPassword">Confirmer le nouveau mot de passe</InputLabel>
+                <InputLabel htmlFor="confirmPassword">Confirmer le mot de passe</InputLabel>
                 <OutlinedInput
                   id="confirmPassword"
                   name="confirmPassword"
                   type="password"
-                  label="Confirmer le nouveau mot de passe"
                   value={formData.confirmPassword}
                   onChange={handleChange}
+                  label="Confirmer le mot de passe"
                 />
               </FormControl>
             </Grid>
-            {message && (
-              <Grid item xs={12}>
-                <Typography color={message.startsWith("✅") ? 'success.main' : 'error'}>{message}</Typography>
-              </Grid>
-            )}
           </Grid>
         </CardContent>
         <Divider />
         <CardActions sx={{ justifyContent: 'flex-end' }}>
-          <Button type="submit" variant="contained">Changer</Button>
+          <Button type="submit" variant="contained">
+            Mettre à jour
+          </Button>
         </CardActions>
       </Card>
     </form>

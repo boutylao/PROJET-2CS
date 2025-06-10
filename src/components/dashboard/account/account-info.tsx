@@ -1,3 +1,5 @@
+'use client';
+
 import * as React from 'react';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
@@ -8,26 +10,27 @@ import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 
-const user = {
-  name: 'Boutheyna LAOUAR',
-  avatar: '/assets/avatar.png',
-  jobTitle: 'Opérateur',
-  country: 'Algérie',
-  city: 'Skikda',
-} as const;
+import { useUserProfile } from '@/hooks/use-user-profile';
 
 export function AccountInfo(): React.JSX.Element {
+  const { profile, loading } = useUserProfile();
+
+  if (loading) return <p>Chargement...</p>;
+  if (!profile) return <p>Profil non trouvé.</p>;
+
   return (
     <Card>
       <CardContent>
         <Stack spacing={2} sx={{ alignItems: 'center' }}>
           <div>
-            <Avatar src={user.avatar} sx={{ height: '80px', width: '80px' }} />
+            <Avatar src="/assets/avatar.png" sx={{ height: 80, width: 80 }} />
           </div>
           <Stack spacing={1} sx={{ textAlign: 'center' }}>
-            <Typography variant="h5">{user.name}</Typography>
+            <Typography variant="h5">
+              {profile.prenom} {profile.nom}
+            </Typography>
             <Typography color="text.secondary" variant="body2">
-              {user.city} {user.country}
+              {profile.wilaya}, Algérie
             </Typography>
           </Stack>
         </Stack>
@@ -35,7 +38,7 @@ export function AccountInfo(): React.JSX.Element {
       <Divider />
       <CardActions>
         <Button fullWidth variant="text">
-          Upload picture
+          Modifier la photo
         </Button>
       </CardActions>
     </Card>
