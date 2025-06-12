@@ -10,10 +10,7 @@ export const metadata = { title: `Settings | Dashboard | ${config.site.name}` } 
 
 export default function Page(): React.JSX.Element {
   return (
-    <Stack spacing={3}>
-      <div>
-        <Typography variant="h4">IMPORTATION DE RAPPORT</Typography>
-      </div>
+    <Stack spacing={0}>
       <ImportationRapport />
     </Stack>
   );
