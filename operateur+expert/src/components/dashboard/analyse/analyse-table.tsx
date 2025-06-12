@@ -5,80 +5,58 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
-import Typography from '@mui/material/Typography';
-import dayjs from 'dayjs';
-import { Button } from '@mui/material';
+import Chip from '@mui/material/Chip';
+import { File as FileIcon } from '@phosphor-icons/react/dist/ssr/File';
 import { useSelection } from '@/hooks/use-selection';
+import dayjs from 'dayjs';
 
-function noop(): void {}
-
-export interface Operation {
+export interface Analyse {
   id: string;
-  name: string;
+  operationType: string;
   drillingSite: string;
-  operationType: string; // Représente ici la phase
+  costPrevu?: string;
+  costReel?: string;
+  delaiPrevu?: string;
+  delaiReel?: string;
   date: Date;
-  time: string;
+  status: string;
   reportUrl: string;
-  createdAt: Date;
-  excelFile: string;
 }
 
-interface OperationsTableProps {
-  count: number;
-  page: number;
-  rows: Operation[];
-  rowsPerPage: number;
-  onPageChange: (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => void;
-  onRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+
+interface AnalyseTableProps {
+  count?: number;
+  page?: number;
+  rows?: Analyse[];
+  rowsPerPage?: number;
+  onPageChange?: (event: unknown, newPage: number) => void;
+  onRowsPerPageChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-function downloadFileFromUrl(url: string, filename: string): void {
-  fetch(url)
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error('Échec du téléchargement');
-      }
-      return response.blob();
-    })
-    .then((blob) => {
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    })
-    .catch((err) => {
-      console.error('Erreur de téléchargement:', err);
-      alert("Le fichier est introuvable ou invalide.");
-    });
-}
-
-export function OperationsTable({
-  count,
-  rows,
-  page,
-  rowsPerPage,
+export function AnalyseTable({
+  count = 0,
+  page = 0,
+  rows = [],
+  rowsPerPage = 0,
   onPageChange,
   onRowsPerPageChange,
-}: OperationsTableProps): React.JSX.Element {
-  const rowIds = React.useMemo(() => rows.map((operation) => operation.id), [rows]);
+}: AnalyseTableProps): React.JSX.Element {
+  const rowIds = React.useMemo(() => rows.map((row) => row.id), [rows]);
   const { selectAll, deselectAll, selectOne, deselectOne, selected } = useSelection(rowIds);
-
   const selectedSome = selected.size > 0 && selected.size < rows.length;
   const selectedAll = rows.length > 0 && selected.size === rows.length;
 
   return (
     <Card>
       <Box sx={{ overflowX: 'auto' }}>
-        <Table sx={{ minWidth: '800px' }}>
+        <Table sx={{ minWidth: '1000px' }}>
           <TableHead>
             <TableRow>
               <TableCell padding="checkbox">
@@ -93,46 +71,49 @@ export function OperationsTable({
               <TableCell>ID</TableCell>
               <TableCell>Phase</TableCell>
               <TableCell>Site de forage</TableCell>
+              <TableCell>Coût prévu</TableCell>
+              <TableCell>Coût réel</TableCell>
+              <TableCell>Délai prévu</TableCell>
+              <TableCell>Délai réel</TableCell>
               <TableCell>Date</TableCell>
-              <TableCell>Heure</TableCell>
+              <TableCell>Statut</TableCell>
               <TableCell>Rapport</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {rows.map((row) => {
               const isSelected = selected.has(row.id);
-              const formattedDate = dayjs(row.date).format('DD/MM/YYYY');
-
               return (
                 <TableRow hover key={row.id} selected={isSelected}>
                   <TableCell padding="checkbox">
                     <Checkbox
                       checked={isSelected}
-                      onChange={(event) =>
-                        event.target.checked ? selectOne(row.id) : deselectOne(row.id)
-                      }
+                      onChange={(event) => {
+                        event.stopPropagation();
+                        event.target.checked ? selectOne(row.id) : deselectOne(row.id);
+                      }}
                     />
                   </TableCell>
                   <TableCell>{row.id}</TableCell>
                   <TableCell>{row.operationType}</TableCell>
                   <TableCell>{row.drillingSite}</TableCell>
-                  <TableCell>{formattedDate}</TableCell>
-                  <TableCell>{row.time}</TableCell>
+                  <TableCell>{row.costPrevu ?? '-'}</TableCell>
+                  <TableCell>{row.costReel ?? '-'}</TableCell>
+                  <TableCell>{row.delaiPrevu ?? '-'}</TableCell>
+                  <TableCell>{row.delaiReel ?? '-'}</TableCell>
+                  <TableCell>{dayjs(row.date).format('DD/MM/YYYY')}</TableCell>
                   <TableCell>
-                  <Button
-  variant="contained"
-  size="small"
-  onClick={() => downloadFileFromUrl(row.reportUrl, `${row.id}.xlsx`)}
-  sx={{
-    backgroundColor: '#16DBAA',
-    '&:hover': {
-      backgroundColor: '#12b794',
-    },
-  }}
+                    <Chip label={row.status} size="small" color="default" />
+                  </TableCell>
+                  <TableCell>
+                  <IconButton
+  color="primary"
+  component="a"
+  href={row.reportUrl}
+  download
 >
-  Télécharger
-</Button>
-
+  <FileIcon fontSize="var(--icon-fontSize-md)" />
+</IconButton>
 
                   </TableCell>
                 </TableRow>
@@ -143,16 +124,15 @@ export function OperationsTable({
       </Box>
       <Divider />
       <TablePagination
-  component="div"
-  count={count}
-  onPageChange={onPageChange}
-  onRowsPerPageChange={onRowsPerPageChange}
-  page={page}
-  rowsPerPage={rowsPerPage}
-  rowsPerPageOptions={[5, 10, 25]}
-  labelRowsPerPage="Lignes par page :"
-  labelDisplayedRows={({ from, to, count }) => `${from}-${to} sur ${count}`}
-/>
+        component="div"
+        count={count}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        onPageChange={onPageChange}
+        onRowsPerPageChange={onRowsPerPageChange}
+        rowsPerPageOptions={[5, 10, 25]}
+        labelRowsPerPage="Lignes par page:"
+      />
     </Card>
   );
 }
