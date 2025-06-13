@@ -195,7 +195,6 @@ export function Dashboard() {
             <GeographicMap />
           </CardContent>
         </Card>
-        Coût global vs Budget Prévisionnel
 
 
         <Card className="h-[280px]">

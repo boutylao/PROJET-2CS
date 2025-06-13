@@ -12,7 +12,7 @@ interface GlobalHeaderProps {
 
 export function GlobalHeader({ searchQuery, onSearchChange }: GlobalHeaderProps) {
   return (
-    <header className="fixed top-0 left-0  z-index: 1000 right-0 z-500 bg-white  px-6 py-4">
+    <header className="fixed top-0 left-0 right-0 z-[9999] bg-white shadow-md px-6 py-4">
       <div className="flex items-center justify-between max-w-full">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-orange-500 rounded flex items-center justify-center">
@@ -23,7 +23,7 @@ export function GlobalHeader({ searchQuery, onSearchChange }: GlobalHeaderProps)
 
         <div className="flex-1 max-w-md mx-8">
           <div className="relative">
-            <Search className="fixed left-3 top-1/2 transform -translate-y-1/2 z-50 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <Input
               type="text"
               placeholder="Search for something"

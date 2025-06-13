@@ -232,7 +232,7 @@ export function WellsList() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Terminé":
+      case "terminé":
         return "text-green-600"
       case "Retard":
         return "text-red-600"
