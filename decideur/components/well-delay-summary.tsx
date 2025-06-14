@@ -3,16 +3,11 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import { ArrowUpDown, Filter, Loader2 } from "lucide-react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ArrowUpDown, Filter } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { ChevronRight } from "lucide-react"
 
-// Nouvelles interfaces selon vos spécifications
-interface DelayItem {
-  id: string
-  phaseName: string
-  delaiPrevu: string
-  depassementDelai: string
-}
 
 interface ReportItem {
   id: string
@@ -21,8 +16,34 @@ interface ReportItem {
   date: string
   drillingProgress: string
   day: string
-  anomalies: string
+  operationsDescriptions?: string[]  // <-- nouveau champ
   plannedOperation: string
+  remarks?: string[]
+}
+
+interface PhaseItem {
+  phaseName: string
+  coutPrevu: number
+  coutReel: number
+  delaiPrevu: number
+  delaiReel: number
+  depassementCout: boolean
+  depassementDelai: boolean
+  etatCout: string
+  etatDelai: string
+  couleurCout: string
+  couleurDelai: string
+}
+
+interface DelayItem {
+  id: string
+  phase: string
+  operation: string
+  activity: string
+  plannedDelay: string
+  actualDelay: string
+  depth: string
+  delayStatus: string
 }
 
 interface WellDelaySummaryProps {
@@ -30,396 +51,528 @@ interface WellDelaySummaryProps {
 }
 
 export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
-  const [sortBy, setSortBy] = useState("phase")
-  const [filterPhase, setFilterPhase] = useState("all")
+  const [sortBy, setSortBy] = useState("date")
+  const [filterOperation, setFilterOperation] = useState("all")
   const [delayData, setDelayData] = useState<DelayItem[]>([])
-  const [reportData, setReportData] = useState<ReportItem[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fonction pour récupérer les données de délais
-  const fetchDelayData = async (): Promise<DelayItem[]> => {
-    const response = await fetch(`http://localhost:8098/previsions`);
-    if (!response.ok) {
-      throw new Error(`Erreur lors du chargement des délais: ${response.statusText}`);
-    }
-    return response.json();
-  };
+  const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [reportsData, setReportsData] = useState<ReportItem[]>([]) // State pour stocker les rapports originaux
 
-  // Fonction pour récupérer les données de rapport
-  const fetchReportData = async (): Promise<ReportItem[]> => {
-    const response = await fetch(`http://localhost:8098/api/reports/puit/${wellId}`);
-    if (!response.ok) {
-      throw new Error(`Erreur lors du chargement des rapports: ${response.statusText}`);
-    }
-    return response.json();
-  };
+  const handleOpenDialog = (id: string) => {
+    // console.log("handleOpenDialog appelé avec ID:", id); // Pour le débogage
+    const report = reportsData.find(r => r.id === id)
+    // console.log("reportsData actuel:", reportsData); // Pour le débogage
+    // console.log("Rapport trouvé pour l'ID", id, ":", report); // Pour le débogage
 
-  // Effet pour charger toutes les données
+    if (report) {
+      setSelectedReport(report)
+      setIsDialogOpen(true)
+    } else {
+      // console.warn("Aucun rapport trouvé pour l'ID:", id, "dans reportsData."); // Pour le débogage
+    }
+  }
+
   useEffect(() => {
-    const fetchAllData = async () => {
-      setIsLoading(true);
-      setError(null);
+    const fetchData = async () => {
       try {
-        // Appel parallèle des deux endpoints
-        const [delayResponse, reportResponse] = await Promise.all([
-          fetchDelayData(),
-          fetchReportData()
-        ]);
-
-        setDelayData(delayResponse);
-        setReportData(reportResponse);
-      } catch (err: any) {
-        console.error("Erreur lors du chargement des données:", err);
-        setError(err.message || "Une erreur inconnue est survenue lors du chargement des données.");
+        setLoading(true)
+        setError(null) // Réinitialiser l'erreur à chaque nouvelle tentative
+  
+        // 1. Récupérer les rapports du puits
+        const reportsResponse = await fetch(`http://localhost:8098/api/reports/puit/${wellId}`)
+        if (!reportsResponse.ok) {
+          throw new Error(`Erreur lors de la récupération des rapports: ${reportsResponse.statusText}`)
+        }
+        const fetchedReportsData: ReportItem[] = await reportsResponse.json()
+  
+        // 2. Ajouter les descriptions d’opérations pour chaque rapport
+        const reportsWithDescriptions = await Promise.all(
+          fetchedReportsData.map(async (report) => {
+            try {
+              const response = await fetch(`http://localhost:8098/api/reports/${report.id}/operations`)
+              const descriptions = response.ok ? await response.json() : []
+              return { ...report, operationsDescriptions: descriptions }
+            } catch (e) {
+              console.error(`Erreur lors du chargement des opérations du rapport ${report.id}`, e)
+              return { ...report, operationsDescriptions: [] }
+            }
+          })
+        )
+  
+        setReportsData(reportsWithDescriptions) // Stocker les rapports enrichis avec les descriptions
+  
+        // 3. Construire les données combinées avec les prévisions par phase
+        const combinedData: DelayItem[] = await Promise.all(
+          reportsWithDescriptions.map(async (report) => {
+            try {
+              let phaseName = report.phase.trim()
+  
+              if (phaseName.includes('26')) phaseName = '26"'
+              else if (phaseName.includes('16')) phaseName = '16"'
+              else if (phaseName.includes('12')) phaseName = '12"1/4'
+              else if (phaseName.includes('8')) phaseName = '8"1/2'
+  
+              const phaseUrl = `http://localhost:8098/previsions/etat-par-phase/${wellId}/${phaseName}`
+              const phaseResponse = await fetch(phaseUrl)
+              if (!phaseResponse.ok) {
+                return {
+                  id: report.id,
+                  phase: report.phase,
+                  operation: report.plannedOperation || "Opération standard",
+                  activity: report.depth || "Profondeur non spécifiée",
+                  plannedDelay: "N/A",
+                  actualDelay: "N/A",
+                  depth: report.depth || "N/A",
+                  delayStatus: "Inconnu"
+                }
+              }
+              const phase: PhaseItem = await phaseResponse.json()
+  
+              return {
+                id: report.id,
+                phase: report.phase,
+                operation: report.plannedOperation || "Opération standard",
+                activity: report.depth || "Profondeur non spécifiée",
+                plannedDelay: `${phase.delaiPrevu}j`,
+                actualDelay: `${phase.delaiReel}j`,
+                depth: report.depth || "N/A",
+                delayStatus: phase.etatDelai
+              }
+            } catch (e) {
+              return {
+                id: report.id,
+                phase: report.phase,
+                operation: report.plannedOperation || "Opération standard",
+                activity: report.depth || "Profondeur non spécifiée",
+                plannedDelay: "N/A",
+                actualDelay: "N/A",
+                depth: report.depth || "N/A",
+                delayStatus: "Erreur"
+              }
+            }
+          })
+        )
+  
+        setDelayData(combinedData)
+  
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de la récupération des données.')
       } finally {
-        setIsLoading(false);
+        setLoading(false)
       }
-    };
-
-    if (wellId) {
-      fetchAllData();
     }
+  
+    fetchData()
   }, [wellId])
+  
 
-  // Fonction pour déterminer la couleur du délai
-  const getDelayColor = (delaiPrevu: string, depassementDelai: string) => {
-    const depassement = Number.parseInt(depassementDelai.replace(/[^\d-]/g, "")) || 0;
-    
-    if (depassement < 0) return "text-green-600"; // En avance
-    if (depassement > 5) return "text-red-600"; // Retard important
-    if (depassement > 0) return "text-orange-500"; // Léger retard
-    return "text-gray-900"; // À l'heure
+  const getDelayColor = (planned: string, actual: string, status?: string) => {
+    if (status) {
+      switch (status) {
+        case "DANGER": return "text-red-600"
+        case "NORMAL": return "text-green-600"
+        case "ATTENTION": return "text-orange-500"
+        case "Inconnu": return "text-gray-500" // Pour les cas où les données sont N/A
+        case "Erreur": return "text-red-800"
+        default: break
+      }
+    }
+
+    const plannedDays = Number.parseInt(planned.replace("j", ""))
+    const actualDays = Number.parseInt(actual.replace("j", ""))
+
+    // Gérer les cas où planned ou actual sont "N/A"
+    if (isNaN(plannedDays) || isNaN(actualDays)) return "text-gray-500"
+
+    if (actualDays === 0) return "text-gray-400" // Not started
+    if (actualDays < plannedDays) return "text-green-600"
+    if (actualDays > plannedDays + 5) return "text-red-400"
+    if (actualDays > plannedDays) return "text-orange-500"
+    return "text-gray-900"
   }
 
-  // Calculer le total des délais
-  const calculateTotalDelay = (items: DelayItem[], type: 'prevu' | 'depassement') => {
-    let total = 0;
+  const calculateTotalDelay = (items: DelayItem[], isPlanned: boolean) => {
+    let total = 0
     items.forEach((item) => {
-      const value = type === 'prevu' 
-        ? Number.parseInt(item.delaiPrevu.replace(/[^\d]/g, "")) || 0
-        : Number.parseInt(item.depassementDelai.replace(/[^\d-]/g, "")) || 0;
-      total += value;
-    });
-    return total;
+      const delayValue = isPlanned ? item.plannedDelay : item.actualDelay;
+      const days = Number.parseInt(delayValue.replace("j", ""));
+      if (!isNaN(days)) { // S'assurer que c'est un nombre valide
+        total += days;
+      }
+    })
+    return `${total}j`
   }
 
-  // Filtrer les données par phase
-  const filteredDelayData = delayData.filter((item) => {
-    if (filterPhase === "all") return true;
-    return item.phaseName.toLowerCase().includes(filterPhase.toLowerCase());
-  });
+  const filteredData = delayData.filter((item) => {
+    if (filterOperation === "all") return true
+    // Note: "Opération 1" est un filtre générique. Vous devrez l'ajuster
+    // pour correspondre aux noms d'opérations réels de votre API.
+    if (filterOperation === "operation1") return item.operation.includes("Opération")
+    // Ajoutez d'autres conditions de filtre si nécessaire
+    // if (filterOperation === "forage") return item.operation.includes("Forage");
+    return true
+  })
 
-  // Obtenir les phases uniques pour le filtre
-  const uniquePhases = Array.from(new Set(delayData.map(item => item.phaseName)));
-
-  // Calculer les totaux
-  const totalDelaiPrevu = calculateTotalDelay(filteredDelayData, 'prevu');
-  const totalDepassement = calculateTotalDelay(filteredDelayData, 'depassement');
-
-  // Trier les données
-  const sortedDelayData = [...filteredDelayData].sort((a, b) => {
-    if (sortBy === "phase") {
-      return a.phaseName.localeCompare(b.phaseName);
+  const sortedData = [...filteredData].sort((a, b) => {
+    switch (sortBy) {
+      case "phase":
+        return a.phase.localeCompare(b.phase)
+      case "delay":
+        // Conversion sécurisée en nombre pour le tri
+        const aDelay = Number.parseInt(a.actualDelay.replace("j", "") || "0");
+        const bDelay = Number.parseInt(b.actualDelay.replace("j", "") || "0");
+        return bDelay - aDelay
+      case "operation":
+        return a.operation.localeCompare(b.operation)
+      case "date": // Assurez-vous que les ReportItem ont une date pour trier
+        // Vous devrez potentiellement trier sur la date du rapport original,
+        // qui n'est pas directement dans DelayItem. Pour l'instant, cela ne fera rien.
+        // Si vous voulez trier par date, vous devrez ajuster DelayItem pour inclure la date
+        // et/ou trier reportsData avant de construire delayData.
+        return 0; // Pas de tri par défaut pour l'instant si la date n'est pas dans DelayItem
+      default:
+        return 0
     }
-    if (sortBy === "delaiPrevu") {
-      const aValue = Number.parseInt(a.delaiPrevu.replace(/[^\d]/g, "")) || 0;
-      const bValue = Number.parseInt(b.delaiPrevu.replace(/[^\d]/g, "")) || 0;
-      return aValue - bValue;
-    }
-    if (sortBy === "depassement") {
-      const aValue = Number.parseInt(a.depassementDelai.replace(/[^\d-]/g, "")) || 0;
-      const bValue = Number.parseInt(b.depassementDelai.replace(/[^\d-]/g, "")) || 0;
-      return bValue - aValue; // Tri décroissant pour les dépassements
-    }
-    return 0;
-  });
+  })
 
-  // Trier les données de rapport par date
-  const sortedReportData = [...reportData].sort((a, b) => {
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
-  });
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] w-full bg-gray-50 rounded-lg">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500 mr-2" />
-        <span className="text-lg text-gray-700">Chargement des données...</span>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg">Chargement des données...</div>
       </div>
-    );
+    )
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] w-full bg-red-100 p-6 rounded-md shadow-md">
-        <p className="text-xl text-red-700">{error}</p>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-red-600">Erreur: {error}</div>
       </div>
-    );
+    )
   }
 
-  if (delayData.length === 0 && reportData.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px] w-full bg-yellow-100 p-6 rounded-md shadow-md">
-        <p className="text-xl text-yellow-700">Aucune donnée trouvée pour le puits {wellId}.</p>
-      </div>
-    );
-  }
+  const totalPlannedDelay = calculateTotalDelay(delayData, true)
+  const totalActualDelay = calculateTotalDelay(delayData, false)
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Tableau de bord du puits {wellId}</h1>
+    <div className="space-y-6 p-6">
+      <h1 className="text-2xl font-bold text-gray-900">Sommaire des délais du puit {wellId}</h1>
 
-      {/* Cartes de résumé des délais */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Délai Total Prévu</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold text-blue-600">{totalDelaiPrevu}j</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Dépassement Total</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className={`text-2xl font-bold ${totalDepassement > 0 ? 'text-red-600' : totalDepassement < 0 ? 'text-green-600' : 'text-gray-900'}`}>
-              {totalDepassement > 0 ? '+' : ''}{totalDepassement}j
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Nombre de Phases</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold text-gray-900">{delayData.length}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtres et tri */}
+      {/* Filters */}
       <div className="flex flex-wrap gap-4">
         <div className="w-64">
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="w-full">
               <div className="flex items-center">
                 <ArrowUpDown className="mr-2 h-4 w-4 text-orange-500" />
-                <span>Trier Par: {
-                  sortBy === "phase" ? "Phase" :
-                  sortBy === "delaiPrevu" ? "Délai Prévu" :
-                  sortBy === "depassement" ? "Dépassement" : "Phase"
-                }</span>
+                <span>Trier Par: {sortBy === "date" ? "Date" : sortBy === "phase" ? "Phase" : sortBy === "delay" ? "Délai" : "Opération"}</span>
               </div>
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="date">Date</SelectItem>
               <SelectItem value="phase">Phase</SelectItem>
-              <SelectItem value="delaiPrevu">Délai Prévu</SelectItem>
-              <SelectItem value="depassement">Dépassement</SelectItem>
+              <SelectItem value="delay">Délai</SelectItem>
+              <SelectItem value="operation">Opération</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="w-64">
-          <Select value={filterPhase} onValueChange={setFilterPhase}>
+          <Select value={filterOperation} onValueChange={setFilterOperation}>
             <SelectTrigger className="w-full">
               <div className="flex items-center">
                 <Filter className="mr-2 h-4 w-4 text-orange-500" />
                 <span>
-                  Filtre: {filterPhase === "all" ? "Toutes les phases" : filterPhase}
+                  Filtre:{" "}
+                  {filterOperation === "all" ? "Toutes" : filterOperation === "operation1" ? "Opération 1" : "Autre"}
                 </span>
               </div>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Toutes les phases</SelectItem>
-              {uniquePhases.map((phase) => (
-                <SelectItem key={phase} value={phase}>{phase}</SelectItem>
-              ))}
+              <SelectItem value="all">Toutes</SelectItem>
+              <SelectItem value="operation1">Opération 1</SelectItem>
+              {/* Ajoutez plus d'options de filtre basées sur vos opérations réelles */}
+              <SelectItem value="operation2">Opération 2</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {/* Table des délais */}
-      {delayData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Analyse des Délais par Phase</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead className="text-gray-600 font-medium">ID</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Phase</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Délai Prévu</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Dépassement</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Statut</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedDelayData.map((item) => {
-                  const depassement = Number.parseInt(item.depassementDelai.replace(/[^\d-]/g, "")) || 0;
-                  return (
-                    <TableRow key={item.id} className="hover:bg-gray-50">
-                      <TableCell className="font-medium">{item.id}</TableCell>
-                      <TableCell className="font-medium">{item.phaseName}</TableCell>
-                      <TableCell>{item.delaiPrevu}</TableCell>
-                      <TableCell className={getDelayColor(item.delaiPrevu, item.depassementDelai)}>
-                        {item.depassementDelai}
-                      </TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          depassement < 0 ? 'bg-green-100 text-green-800' :
-                          depassement > 5 ? 'bg-red-100 text-red-800' :
-                          depassement > 0 ? 'bg-orange-100 text-orange-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {depassement < 0 ? 'En avance' :
-                           depassement > 5 ? 'Retard important' :
-                           depassement > 0 ? 'Léger retard' : 'À l\'heure'}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                <TableRow className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
-                  <TableCell colSpan={2} className="text-right font-bold">Total</TableCell>
-                  <TableCell className="font-bold">{totalDelaiPrevu}j</TableCell>
-                  <TableCell className={`font-bold ${totalDepassement > 0 ? 'text-red-600' : totalDepassement < 0 ? 'text-green-600' : 'text-gray-900'}`}>
-                    {totalDepassement > 0 ? '+' : ''}{totalDepassement}j
-                  </TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Table des rapports */}
-      {reportData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Rapports de Forage</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead className="text-gray-600 font-medium">ID</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Date</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Jour</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Phase</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Profondeur</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Progression</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Opération Prévue</TableHead>
-                  <TableHead className="text-gray-600 font-medium">Anomalies</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedReportData.slice(0, 10).map((item) => (
-                  <TableRow key={item.id} className="hover:bg-gray-50">
-                    <TableCell className="font-medium">{item.id}</TableCell>
-                    <TableCell>{new Date(item.date).toLocaleDateString('fr-FR')}</TableCell>
-                    <TableCell>{item.day}</TableCell>
-                    <TableCell className="font-medium">{item.phase}</TableCell>
-                    <TableCell>{item.depth}</TableCell>
-                    <TableCell>{item.drillingProgress}</TableCell>
-                    <TableCell>{item.plannedOperation}</TableCell>
-                    <TableCell>
-                      {item.anomalies ? (
-                        <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">
-                          {item.anomalies}
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                          Aucune
-                        </span>
-                      )}
-                    </TableCell>
-                  </TableRow>
+      {/* Delay Summary Table */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="text-left p-4 font-medium text-gray-600 border-b">Phase</th>
+                  <th className="text-left p-4 font-medium text-gray-600 border-b">Opération</th>
+                  <th className="text-left p-4 font-medium text-gray-600 border-b">Profondeur</th>
+                  <th className="text-left p-4 font-medium text-gray-600 border-b">Délai Prévisionnel</th>
+                  <th className="text-left p-4 font-medium text-gray-600 border-b">Délai Réel</th>
+                  <th className="text-left p-4 font-medium text-gray-600 border-b">Statut</th>
+                  <th className="text-left p-4 font-medium text-gray-600 border-b">Détail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedData.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50 border-b">
+                    <td className="p-4 font-medium">{item.phase}</td>
+                    <td className="p-4">{item.operation}</td>
+                    <td className="p-4">{item.depth}</td>
+                    <td className="p-4 text-orange-600">{item.plannedDelay}</td>
+                    <td className={`p-4 ${getDelayColor(item.plannedDelay, item.actualDelay, item.delayStatus)}`}>
+                      {item.actualDelay}
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        item.delayStatus === "DANGER" ? "bg-red-100 text-red-600" :
+                        item.delayStatus === "NORMAL" ? "bg-green-100 text-green-800" :
+                        item.delayStatus === "ATTENTION" ? "bg-yellow-100 text-yellow-800" :
+                        "bg-gray-100 text-gray-800" // Pour "Inconnu" ou "Erreur"
+                      }`}>
+                        {item.delayStatus}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      {/* Correction ici: pas besoin de split, item.id est maintenant l'ID original du rapport */}
+                      <button onClick={() => handleOpenDialog(item.id)}>
+                        <ChevronRight className="w-4 h-4 text-gray-600 hover:text-black" />
+                      </button>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
-            {reportData.length > 10 && (
-              <div className="p-4 text-center text-gray-500 text-sm">
-                ... et {reportData.length - 10} autres rapports
-              </div>
-            )}
+
+                {/* Total Row */}
+                <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
+                  <td colSpan={3} className="p-4 text-right font-bold">
+                    Total
+                  </td>
+                  <td className="p-4 font-bold">{totalPlannedDelay}</td>
+                  <td className={`p-4 font-bold ${getDelayColor(totalPlannedDelay, totalActualDelay)}`}>
+                    {totalActualDelay}
+                  </td>
+                  <td className="p-4"></td>
+                  <td className="p-4"></td> {/* Ajout d'une colonne vide pour le bouton détail */}
+                </tr>
+              </tbody>
+            </table>
+            {/* Dialog placé en dehors du map */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen} cl>
+  <DialogContent className="max-h-[70vh] flex flex-col">
+    <DialogHeader className="flex-shrink-0">
+      <DialogTitle>
+        <p className="text-orange-600 text-xl">Détails du rapport</p>
+      </DialogTitle>
+    </DialogHeader>
+    
+    <div className="flex-1 overflow-y-auto pr-3 ">
+      {selectedReport && (
+        <div className="space-y-2 text-sm">
+          <p><strong>ID :</strong> {selectedReport.id}</p>
+          <p><strong>Phase :</strong> {selectedReport.phase}</p>
+          
+          <div>
+            <p><strong>Opérations :</strong></p>
+            <ul className="list-disc list-inside ml-4">
+              {selectedReport.operationsDescriptions && selectedReport.operationsDescriptions.length > 0 ? (
+                selectedReport.operationsDescriptions.map((desc: any, index: number) => (
+                  <li key={index}>
+                    {typeof desc === 'string' ? desc : desc.description}
+                  </li>
+                ))
+              ) : (
+                <li>Aucune opération enregistrée</li>
+              )}
+            </ul>
+          </div>
+          
+          <p><strong>Date :</strong> {selectedReport.date}</p>
+          <p><strong>Jour :</strong> {selectedReport.day}</p>
+          <p><strong>Depth :</strong> {selectedReport.depth} ft</p>
+          <p><strong>Drilling Progress :</strong> {selectedReport.drillingProgress}</p>
+          
+          <div>
+            <p><strong>Remarques :</strong></p>
+            <ul className="list-disc list-inside ml-4">
+              {selectedReport.remarks && selectedReport.remarks.length > 0 ? (
+                selectedReport.remarks.map((desc: any, index: number) => (
+                  <li key={index}>
+                    {typeof desc === 'string' ? desc : desc.description}
+                  </li>
+                ))
+              ) : (
+                <li>Aucune remarque enregistrée</li>
+              )}
+            </ul>
+          </div>
+          
+          <p><strong>Opération prévue :</strong> {selectedReport.plannedOperation}</p>
+        </div>
+      )}
+    </div>
+  </DialogContent>
+</Dialog>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Delay Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Délai Total Prévu</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-bold text-blue-600">{totalPlannedDelay}</div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Graphique de progression des délais */}
-      {delayData.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle>Visualisation des Délais par Phase</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Délai Total Réel</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {sortedDelayData.map((item) => {
-                const delaiPrevu = Number.parseInt(item.delaiPrevu.replace(/[^\d]/g, "")) || 0;
-                const depassement = Number.parseInt(item.depassementDelai.replace(/[^\d-]/g, "")) || 0;
-                const delaiReel = delaiPrevu + depassement;
-                const maxDelai = Math.max(delaiPrevu, delaiReel, 1);
-                const prevuWidth = (delaiPrevu / maxDelai) * 100;
-                const reelWidth = (delaiReel / maxDelai) * 100;
+          <CardContent className="pt-0">
+            <div className={`text-2xl font-bold ${getDelayColor(totalPlannedDelay, totalActualDelay)}`}>
+              {totalActualDelay}
+            </div>
+          </CardContent>
+        </Card>
 
-                return (
-                  <div key={item.id} className="space-y-2">
-                    <div className="flex justify-between">
-                      <div className="font-medium">{item.phaseName}</div>
-                      <div className="flex space-x-4">
-                        <div className="text-gray-600">Prévu: {item.delaiPrevu}</div>
-                        <div className={getDelayColor(item.delaiPrevu, item.depassementDelai)}>
-                          Réel: {delaiReel}j
-                        </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Variance</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className={`text-2xl font-bold ${getDelayColor(totalPlannedDelay, totalActualDelay)}`}>
+              {/* Calcul sécurisé de la variance */}
+              {isNaN(Number.parseInt(totalActualDelay.replace("j", ""))) || isNaN(Number.parseInt(totalPlannedDelay.replace("j", "")))
+                ? "N/A"
+                : Number.parseInt(totalActualDelay.replace("j", "")) - Number.parseInt(totalPlannedDelay.replace("j", ""))}
+              j
+            </div>
+            <div className="text-sm text-gray-500">
+              {totalPlannedDelay !== "0j" && !isNaN(Number.parseInt(totalPlannedDelay.replace("j", ""))) && Number.parseInt(totalPlannedDelay.replace("j", "")) !== 0 ? (
+                ((Number.parseInt(totalActualDelay.replace("j", "")) -
+                  Number.parseInt(totalPlannedDelay.replace("j", ""))) /
+                  Number.parseInt(totalPlannedDelay.replace("j", ""))) *
+                100
+              ).toFixed(1) : "0"}
+              %
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Delay Timeline Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Chronologie des Délais par Phase</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {sortedData.map((item) => {
+              const plannedDays = Number.parseInt(item.plannedDelay.replace("j", "") || "0");
+              const actualDays = Number.parseInt(item.actualDelay.replace("j", "") || "0");
+              const maxDays = Math.max(plannedDays, actualDays, 1);
+              const plannedWidth = (plannedDays / maxDays) * 100;
+              const actualWidth = (actualDays / maxDays) * 100;
+
+              return (
+                <div key={item.id} className="space-y-2">
+                  <div className="flex justify-between">
+                    <div className="font-medium">
+                      {item.phase} - {item.operation}
+                    </div>
+                    <div className="flex space-x-4">
+                      <div className="text-gray-600">Prévu: {item.plannedDelay}</div>
+                      <div className={getDelayColor(item.plannedDelay, item.actualDelay, item.delayStatus)}>
+                        Réel: {item.actualDelay}
                       </div>
                     </div>
-                    <div className="relative h-6">
-                      {/* Barre prévue */}
-                      <div
-                        className="absolute top-0 left-0 h-3 bg-blue-200 rounded-full"
-                        style={{ width: `${prevuWidth}%` }}
-                      ></div>
-                      {/* Barre réelle */}
-                      <div
-                        className={`absolute bottom-0 left-0 h-3 rounded-full ${
-                          depassement > 0 ? "bg-red-500" : depassement < 0 ? "bg-green-500" : "bg-blue-500"
-                        }`}
-                        style={{ width: `${reelWidth}%` }}
-                      ></div>
-                    </div>
                   </div>
-                );
-              })}
+                  <div className="relative h-6">
+                    {/* Planned Bar */}
+                    <div
+                      className="absolute top-0 left-0 h-3 bg-blue-200 rounded-full"
+                      style={{ width: `${plannedWidth}%` }}
+                    ></div>
+                    {/* Actual Bar */}
+                    <div
+                      className={`absolute bottom-0 left-0 h-3 rounded-full ${
+                        actualDays === 0 ? "bg-gray-300" :
+                        actualDays > plannedDays ? "bg-red-500" : "bg-green-500"
+                      }`}
+                      style={{ width: `${actualWidth}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Delay Distribution Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Distribution des Délais</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 flex items-end space-x-6 justify-center">
+            {sortedData.map((item) => {
+              const plannedDays = Number.parseInt(item.plannedDelay.replace("j", "") || "0");
+              const actualDays = Number.parseInt(item.actualDelay.replace("j", "") || "0");
+              const maxHeight = 200;
+              const maxDays = Math.max(...sortedData.map(d =>
+                Math.max(
+                  Number.parseInt(d.plannedDelay.replace("j", "") || "0"),
+                  Number.parseInt(d.actualDelay.replace("j", "") || "0")
+                )
+              ), 1); // Assurez-vous que maxDays est au moins 1 pour éviter la division par zéro
+              const plannedHeight = (plannedDays / maxDays) * maxHeight;
+              const actualHeight = (actualDays / maxDays) * maxHeight;
+
+              return (
+                <div key={item.id} className="flex flex-col items-center">
+                  <div className="flex space-x-1 items-end">
+                    <div className="w-8 bg-blue-200 rounded-t" style={{ height: `${plannedHeight}px` }}></div>
+                    <div
+                      className={`w-8 rounded-t ${
+                        actualDays === 0 ? "bg-gray-300" :
+                        actualDays > plannedDays ? "bg-red-500" : "bg-green-500"
+                      }`}
+                      style={{ height: `${actualHeight}px` }}
+                    ></div>
+                  </div>
+                  <div className="mt-2 text-xs font-medium">{item.phase}</div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex justify-center mt-4 space-x-6">
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-blue-200"></div>
+              <span className="text-sm">Prévu</span>
             </div>
-            <div className="flex justify-center mt-6 space-x-6">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-blue-200"></div>
-                <span className="text-sm">Délai Prévu</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-green-500"></div>
-                <span className="text-sm">En avance</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-blue-500"></div>
-                <span className="text-sm">À l'heure</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-red-500"></div>
-                <span className="text-sm">En retard</span>
-              </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-green-500"></div>
+              <span className="text-sm">Réel (en avance/à temps)</span>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-red-500"></div>
+              <span className="text-sm">Réel (en retard)</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-gray-300"></div>
+              <span className="text-sm">Non commencé</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
