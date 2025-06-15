@@ -12,7 +12,6 @@ interface SidebarProps {
 const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { id: "wells-list", label: "Liste Puits", icon: List, path: "/wells" },
-  { id: "progress-status", label: "Etat d'avancement", icon: TrendingUp, path: "/progress" },
   { id: "alerts-notifications", label: "Alertes ", icon: Bell, path: "/alerts" },
   { id: "profile", label: "Profil", icon: User, path: "/profile" },
 ]

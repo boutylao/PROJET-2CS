@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import { ArrowUpDown, Filter } from "lucide-react"
+import { ArrowUpDown, Filter, Loader2, Clock, CheckCircle, AlertTriangle } from "lucide-react" // Added icons
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { ChevronRight } from "lucide-react"
@@ -16,7 +16,7 @@ interface ReportItem {
   date: string
   drillingProgress: string
   day: string
-  operationsDescriptions?: string[]  // <-- nouveau champ
+  operationsDescriptions?: string[] 
   plannedOperation: string
   remarks?: string[]
 }
@@ -35,7 +35,6 @@ interface PhaseItem {
   etatDelai: string
   couleurCout: string
   couleurDelai: string
-  
 }
 
 interface DelayItem {
@@ -57,24 +56,19 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
   const [sortBy, setSortBy] = useState("date")
   const [filterOperation, setFilterOperation] = useState("all")
   const [delayData, setDelayData] = useState<DelayItem[]>([])
+  const [phaseData, setPhaseData] = useState<PhaseItem[]>([]) // NEW: State for phase data
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [reportsData, setReportsData] = useState<ReportItem[]>([]) // State pour stocker les rapports originaux
+  const [reportsData, setReportsData] = useState<ReportItem[]>([])
 
   const handleOpenDialog = (id: string) => {
-    // console.log("handleOpenDialog appelé avec ID:", id); // Pour le débogage
     const report = reportsData.find(r => r.id === id)
-    // console.log("reportsData actuel:", reportsData); // Pour le débogage
-    // console.log("Rapport trouvé pour l'ID", id, ":", report); // Pour le débogage
-
     if (report) {
       setSelectedReport(report)
       setIsDialogOpen(true)
-    } else {
-      // console.warn("Aucun rapport trouvé pour l'ID:", id, "dans reportsData."); // Pour le débogage
     }
   }
 
@@ -82,16 +76,16 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
     const fetchData = async () => {
       try {
         setLoading(true)
-        setError(null) // Réinitialiser l'erreur à chaque nouvelle tentative
-  
-        // 1. Récupérer les rapports du puits
+        setError(null)
+
+        // 1. Fetch reports for the well
         const reportsResponse = await fetch(`http://localhost:8098/api/reports/puit/${wellId}`)
         if (!reportsResponse.ok) {
           throw new Error(`Erreur lors de la récupération des rapports: ${reportsResponse.statusText}`)
         }
         const fetchedReportsData: ReportItem[] = await reportsResponse.json()
-  
-        // 2. Ajouter les descriptions d’opérations pour chaque rapport
+
+        // 2. Add operation descriptions to each report
         const reportsWithDescriptions = await Promise.all(
           fetchedReportsData.map(async (report) => {
             try {
@@ -104,73 +98,71 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
             }
           })
         )
-  
-        setReportsData(reportsWithDescriptions) // Stocker les rapports enrichis avec les descriptions
-  
-        // 3. Construire les données combinées avec les prévisions par phase
+        setReportsData(reportsWithDescriptions)
+
+        // 3. Fetch phase data for global summary and phase-specific charts
+        const phases = ['26"', '16"', '12"', '8"']
+        const phasePromises = phases.map(async (phaseName) => {
+          try {
+            const phaseUrl = `http://localhost:8098/previsions/etat-par-phase/${wellId}/${phaseName}`
+            const phaseResponse = await fetch(phaseUrl)
+            if (!phaseResponse.ok) {
+              console.warn(`Could not fetch phase data for ${phaseName}: Status ${phaseResponse.status}`)
+              return null
+            }
+            const phase: PhaseItem = await phaseResponse.json()
+            return phase
+          } catch (e) {
+            console.error(`Error fetching phase ${phaseName}:`, e)
+            return null
+          }
+        })
+
+        const fetchedPhaseData = (await Promise.all(phasePromises)).filter((phase): phase is PhaseItem => phase !== null);
+        setPhaseData(fetchedPhaseData); // Set the phase data state
+
+        // 4. Build combined delay data using reports and fetched phase data
         const combinedData: DelayItem[] = await Promise.all(
           reportsWithDescriptions.map(async (report) => {
-            try {
-              let phaseName = report.phase.trim()
-  
-              if (phaseName.includes('26')) phaseName = '26"'
-              else if (phaseName.includes('16')) phaseName = '16"'
-              else if (phaseName.includes('12')) phaseName = '12"'
-              else if (phaseName.includes('8')) phaseName = '8"'
-  
-              const phaseUrl = `http://localhost:8098/previsions/etat-par-phase/${wellId}/${phaseName}`
-              const phaseResponse = await fetch(phaseUrl)
-              if (!phaseResponse.ok) {
-                return {
-                  id: report.id,
-                  phase: report.phase,
-                  operation: report.plannedOperation || "Opération standard",
-                  activity: report.depth || "Profondeur non spécifiée",
-                  plannedDelay: "N/A",
-                  actualDelay: "N/A",
-                  depth: report.depth || "N/A",
-                  delayStatus: "Inconnu"
-                }
-              }
-              const phase: PhaseItem = await phaseResponse.json()
-  
-              return {
-                id: report.id,
-                phase: report.phase,
-                operation: report.plannedOperation || "Opération standard",
-                activity: report.depth || "Profondeur non spécifiée",
-                plannedDelay: `${phase.delaiPrevu}j`,
-                actualDelay:`${report.day}j`, 
-                depth: report.depth || "N/A",
-                delayStatus: phase.etatDelai
-              }
-            } catch (e) {
-              return {
-                id: report.id,
-                phase: report.phase,
-                operation: report.plannedOperation || "Opération standard",
-                activity: report.depth || "Profondeur non spécifiée",
-                plannedDelay: "N/A",
-                actualDelay: "N/A",
-                depth: report.depth || "N/A",
-                delayStatus: "Erreur"
-              }
-            }
+            let phaseNameNormalized = report.phase.trim();
+            if (phaseNameNormalized.includes('26')) phaseNameNormalized = '26"';
+            else if (phaseNameNormalized.includes('16')) phaseNameNormalized = '16"';
+            else if (phaseNameNormalized.includes('12')) phaseNameNormalized = '12"';
+            else if (phaseNameNormalized.includes('8')) phaseNameNormalized = '8"';
+
+            // Find the corresponding phase data from the already fetched phaseData
+            const phase = fetchedPhaseData.find(p => p.phaseName === phaseNameNormalized);
+
+            const plannedDelayValue = phase ? `${phase.delaiPrevu}j` : "N/A";
+            const actualDelayValue = `${report.day}j`; // Using report.day for actual delay as per your logic
+            const delayStatusValue = phase ? phase.etatDelai : "Inconnu";
+
+            return {
+              id: report.id,
+              phase: report.phase,
+              operation: report.plannedOperation || "Opération standard",
+              activity: report.depth || "Profondeur non spécifiée",
+              plannedDelay: plannedDelayValue,
+              actualDelay: actualDelayValue,
+              depth: report.depth || "N/A",
+              delayStatus: delayStatusValue
+            };
           })
-        )
-  
+        );
         setDelayData(combinedData)
-  
+
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de la récupération des données.')
       } finally {
         setLoading(false)
       }
     }
-  
-    fetchData()
+
+    if (wellId) {
+      fetchData()
+    }
   }, [wellId])
-  
+
 
   const getDelayColor = (planned: string, actual: string, status?: string) => {
     if (status) {
@@ -178,7 +170,7 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
         case "DANGER": return "text-red-600"
         case "NORMAL": return "text-green-600"
         case "ATTENTION": return "text-orange-500"
-        case "Inconnu": return "text-gray-500" // Pour les cas où les données sont N/A
+        case "Inconnu": return "text-gray-500"
         case "Erreur": return "text-red-800"
         default: break
       }
@@ -187,10 +179,9 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
     const plannedDays = Number.parseInt(planned.replace("j", ""))
     const actualDays = Number.parseInt(actual.replace("j", ""))
 
-    // Gérer les cas où planned ou actual sont "N/A"
     if (isNaN(plannedDays) || isNaN(actualDays)) return "text-gray-500"
 
-    if (actualDays === 0) return "text-gray-400" // Not started
+    if (actualDays === 0) return "text-gray-400"
     if (actualDays < plannedDays) return "text-green-600"
     if (actualDays > plannedDays + 5) return "text-red-400"
     if (actualDays > plannedDays) return "text-orange-500"
@@ -202,7 +193,7 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
     items.forEach((item) => {
       const delayValue = isPlanned ? item.plannedDelay : item.actualDelay;
       const days = Number.parseInt(delayValue.replace("j", ""));
-      if (!isNaN(days)) { // S'assurer que c'est un nombre valide
+      if (!isNaN(days)) {
         total += days;
       }
     })
@@ -211,11 +202,7 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
 
   const filteredData = delayData.filter((item) => {
     if (filterOperation === "all") return true
-    // Note: "Opération 1" est un filtre générique. Vous devrez l'ajuster
-    // pour correspondre aux noms d'opérations réels de votre API.
     if (filterOperation === "operation1") return item.operation.includes("Opération")
-    // Ajoutez d'autres conditions de filtre si nécessaire
-    // if (filterOperation === "forage") return item.operation.includes("Forage");
     return true
   })
 
@@ -224,26 +211,47 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
       case "phase":
         return a.phase.localeCompare(b.phase)
       case "delay":
-        // Conversion sécurisée en nombre pour le tri
         const aDelay = Number.parseInt(a.actualDelay.replace("j", "") || "0");
         const bDelay = Number.parseInt(b.actualDelay.replace("j", "") || "0");
         return bDelay - aDelay
       case "operation":
         return a.operation.localeCompare(b.operation)
-      case "date": // Assurez-vous que les ReportItem ont une date pour trier
-        // Vous devrez potentiellement trier sur la date du rapport original,
-        // qui n'est pas directement dans DelayItem. Pour l'instant, cela ne fera rien.
-        // Si vous voulez trier par date, vous devrez ajuster DelayItem pour inclure la date
-        // et/ou trier reportsData avant de construire delayData.
-        return 0; // Pas de tri par défaut pour l'instant si la date n'est pas dans DelayItem
+      case "date":
+        // To sort by date, you'd need the date in DelayItem or join with reportsData
+        // For now, no specific sorting for 'date' if not available in DelayItem
+        return 0;
       default:
         return 0
     }
   })
 
+  // Calculate global cost and delay from phaseData
+  const totalCoutPrevu = phaseData.reduce((sum, phase) => sum + phase.coutPrevu, 0);
+  const totalCoutReel = phaseData.reduce((sum, phase) => sum + phase.coutReel, 0);
+
+  const globalDelaiPrevu = phaseData.reduce((sum, phase) => sum + phase.delaiPrevu, 0);
+  const globalDelaiReel = phaseData.reduce((sum, phase) => sum + phase.delaiReel, 0);
+
+  // For the Cost and Delay Summary Card's progress circles
+  let costProgress = 0;
+  if (totalCoutPrevu > 0) {
+    costProgress = (totalCoutReel / totalCoutPrevu) * 100;
+  } else if (totalCoutReel > 0) {
+    costProgress = 100;
+  }
+
+  let delayProgress = 0;
+  if (globalDelaiPrevu > 0) {
+    delayProgress = (globalDelaiReel / globalDelaiPrevu) * 100;
+  } else if (globalDelaiReel > 0) {
+    delayProgress = 100;
+  }
+
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500 mr-2" />
         <div className="text-lg">Chargement des données...</div>
       </div>
     )
@@ -260,8 +268,13 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
   const totalPlannedDelay = calculateTotalDelay(delayData, true)
   const totalActualDelay = calculateTotalDelay(delayData, false)
 
+
   return (
     <div className="space-y-6 p-6 w-[900px]">
+
+      {/* NEW: Global Survey Delay & Cost Card */}
+     
+
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4">
@@ -296,7 +309,6 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
             <SelectContent>
               <SelectItem value="all">Toutes</SelectItem>
               <SelectItem value="operation1">Opération 1</SelectItem>
-              {/* Ajoutez plus d'options de filtre basées sur vos opérations réelles */}
               <SelectItem value="operation2">Opération 2</SelectItem>
             </SelectContent>
           </Select>
@@ -334,91 +346,80 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
                         item.delayStatus === "DANGER" ? "bg-red-100 text-red-600" :
                         item.delayStatus === "NORMAL" ? "bg-green-100 text-green-800" :
                         item.delayStatus === "ATTENTION" ? "bg-yellow-100 text-yellow-800" :
-                        "bg-gray-100 text-gray-800" // Pour "Inconnu" ou "Erreur"
+                        "bg-gray-100 text-gray-800"
                       }`}>
                         {item.delayStatus}
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      {/* Correction ici: pas besoin de split, item.id est maintenant l'ID original du rapport */}
                       <button onClick={() => handleOpenDialog(item.id)}>
                         <ChevronRight className="w-4 h-4 text-gray-600 hover:text-black" />
                       </button>
                     </td>
                   </tr>
                 ))}
-
-                {/* Total Row */}
-                {/* <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
-                  <td colSpan={3} className="p-4 text-right font-bold">
-                    Total</td>
-                  <td className="p-4 font-bold">{totalPlannedDelay}</td>
-                  <td className={`p-4 font-bold ${getDelayColor(totalPlannedDelay, totalActualDelay)}`}> {totalActualDelay}</td>
-                  <td className="p-4"></td>
-                  <td className="p-4"></td></tr> */}
               </tbody>
             </table>
-            {/* Dialog placé en dehors du map */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen} >
-  <DialogContent className="max-h-[70vh] flex flex-col">
-    <DialogHeader className="flex-shrink-0">
-      <DialogTitle>
-        <p className="text-orange-600 text-xl">Détails du rapport</p>
-      </DialogTitle>
-    </DialogHeader>
-    
-    <div className="flex-1 overflow-y-auto pr-3 ">
-      {selectedReport && (
-        <div className="space-y-2 text-sm">
-          <p><strong>ID :</strong> {selectedReport.id}</p>
-          <p><strong>Phase :</strong> {selectedReport.phase}</p>
-          
-          <div>
-            <p><strong>Opérations :</strong></p>
-            <ul className="list-disc list-inside ml-4">
-              {selectedReport.operationsDescriptions && selectedReport.operationsDescriptions.length > 0 ? (
-                selectedReport.operationsDescriptions.map((desc: any, index: number) => (
-                  <li key={index}>
-                    {typeof desc === 'string' ? desc : desc.description}
-                  </li>
-                ))
-              ) : (
-                <li>Aucune opération enregistrée</li>
-              )}
-            </ul>
-          </div>
-          
-          <p><strong>Date :</strong> {selectedReport.date}</p>
-          <p><strong>Jour :</strong> {selectedReport.day}</p>
-          <p><strong>Depth :</strong> {selectedReport.depth} ft</p>
-          <p><strong>Drilling Progress :</strong> {selectedReport.drillingProgress}</p>
-          
-          <div>
-            <p><strong>Remarques :</strong></p>
-            <ul className="list-disc list-inside ml-4">
-              {selectedReport.remarks && selectedReport.remarks.length > 0 ? (
-                selectedReport.remarks.map((desc: any, index: number) => (
-                  <li key={index}>
-                    {typeof desc === 'string' ? desc : desc.description}
-                  </li>
-                ))
-              ) : (
-                <li>Aucune remarque enregistrée</li>
-              )}
-            </ul>
-          </div>
-          
-          <p><strong>Opération prévue :</strong> {selectedReport.plannedOperation}</p>
-        </div>
-      )}
-    </div>
-  </DialogContent>
-</Dialog>
+              <DialogContent className="max-h-[70vh] flex flex-col">
+                <DialogHeader className="flex-shrink-0">
+                  <DialogTitle>
+                    <p className="text-orange-600 text-xl">Détails du rapport</p>
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="flex-1 overflow-y-auto pr-3 ">
+                  {selectedReport && (
+                    <div className="space-y-2 text-sm">
+                      <p><strong>ID :</strong> {selectedReport.id}</p>
+                      <p><strong>Phase :</strong> {selectedReport.phase}</p>
+
+                      <div>
+                        <p><strong>Opérations :</strong></p>
+                        <ul className="list-disc list-inside ml-4">
+                          {selectedReport.operationsDescriptions && selectedReport.operationsDescriptions.length > 0 ? (
+                            selectedReport.operationsDescriptions.map((desc: any, index: number) => (
+                              <li key={index}>
+                                {typeof desc === 'string' ? desc : desc.description}
+                              </li>
+                            ))
+                          ) : (
+                            <li>Aucune opération enregistrée</li>
+                          )}
+                        </ul>
+                      </div>
+
+                      <p><strong>Date :</strong> {selectedReport.date}</p>
+                      <p><strong>Jour :</strong> {selectedReport.day}</p>
+                      <p><strong>Depth :</strong> {selectedReport.depth} ft</p>
+                      <p><strong>Drilling Progress :</strong> {selectedReport.drillingProgress}</p>
+
+                      <div>
+                        <p><strong>Remarques :</strong></p>
+                        <ul className="list-disc list-inside ml-4">
+                          {selectedReport.remarks && selectedReport.remarks.length > 0 ? (
+                            selectedReport.remarks.map((desc: any, index: number) => (
+                              <li key={index}>
+                                {typeof desc === 'string' ? desc : desc.description}
+                              </li>
+                            ))
+                          ) : (
+                            <li>Aucune remarque enregistrée</li>
+                          )}
+                        </ul>
+                      </div>
+
+                      <p><strong>Opération prévue :</strong> {selectedReport.plannedOperation}</p>
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardContent>
       </Card>
 
-      {/* Delay Summary Cards */}
+      {/* Delay Summary Cards (Total Planned, Total Actual, Variance) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -446,7 +447,6 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
           </CardHeader>
           <CardContent className="pt-0">
             <div className={`text-2xl font-bold ${getDelayColor(totalPlannedDelay, totalActualDelay)}`}>
-              {/* Calcul sécurisé de la variance */}
               {isNaN(Number.parseInt(totalActualDelay.replace("j", ""))) || isNaN(Number.parseInt(totalPlannedDelay.replace("j", "")))
                 ? "N/A"
                 : Number.parseInt(totalActualDelay.replace("j", "")) - Number.parseInt(totalPlannedDelay.replace("j", ""))}
@@ -465,10 +465,10 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
         </Card>
       </div>
 
-      {/* Delay Timeline Chart */}
+      {/* Delay Timeline Chart (by Report Item) */}
       <Card>
         <CardHeader>
-          <CardTitle>Chronologie des Délais par Phase</CardTitle>
+          <CardTitle>Chronologie des Délais par Phase (Rapports)</CardTitle> {/* Clarified title */}
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
@@ -514,46 +514,48 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
         </CardContent>
       </Card>
 
-      {/* Delay Distribution Chart */}
+      {/* Delay Distribution Chart (by Phase) */}
       <Card>
         <CardHeader>
-          <CardTitle>Distribution des Délais</CardTitle>
+          <CardTitle>Distribution des Délais par Phase</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64 flex items-end space-x-6 justify-center">
-            {sortedData.map((item) => {
-              const plannedDays = Number.parseInt(item.plannedDelay.replace("j", "") || "0");
-              const actualDays = Number.parseInt(item.actualDelay.replace("j", "") || "0");
-              const maxHeight = 200;
-              const maxDays = Math.max(...sortedData.map(d =>
-                Math.max(
-                  Number.parseInt(d.plannedDelay.replace("j", "") || "0"),
-                  Number.parseInt(d.actualDelay.replace("j", "") || "0")
-                )
-              ), 1); // Assurez-vous que maxDays est au moins 1 pour éviter la division par zéro
-              const plannedHeight = (plannedDays / maxDays) * maxHeight;
-              const actualHeight = (actualDays / maxDays) * maxHeight;
+          <div className="overflow-x-auto pb-4">
+            <div className="h-64 flex items-end space-x-6 justify-center min-w-max">
+              {phaseData.map((phase) => { // Using phaseData directly here
+                const plannedDays = phase.delaiPrevu;
+                const actualDays = phase.delaiReel;
+                const maxHeight = 200;
 
-              return (
-                <div key={item.id} className="flex flex-col items-center">
-                  <div className="flex space-x-1 items-end">
-                    <div className="w-8 bg-blue-200 rounded-t" style={{ height: `${plannedHeight}px` }}></div>
-                    <div
-                      className={`w-8 rounded-t ${
-                        actualDays === 0 ? "bg-gray-300" :
-                        actualDays > plannedDays ? "bg-red-500" : "bg-green-500"
-                      }`}
-                      style={{ height: `${actualHeight}px` }}
-                    ></div>
+                const maxDays = Math.max(
+                  ...phaseData.map(p => Math.max(p.delaiPrevu, p.delaiReel)),
+                  1
+                );
+
+                const plannedHeight = (plannedDays / maxDays) * maxHeight;
+                const actualHeight = (actualDays / maxDays) * maxHeight;
+
+                return (
+                  <div key={phase.phaseName} className="flex flex-col items-center">
+                    <div className="flex space-x-1 items-end">
+                      <div className="w-8 bg-yellow-400 rounded-t" style={{ height: `${plannedHeight}px` }}></div>
+                      <div
+                        className={`w-8 rounded-t ${
+                          actualDays === 0 && plannedDays > 0 ? "bg-orange-300" :
+                          actualDays > plannedDays ? "bg-red-500" : "bg-green-500"
+                        }`}
+                        style={{ height: `${actualHeight}px` }}
+                      ></div>
+                    </div>
+                    <div className="mt-2 text-xs font-medium">{phase.phaseName}</div>
                   </div>
-                  <div className="mt-2 text-xs font-medium">{item.phase}</div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
           <div className="flex justify-center mt-4 space-x-6">
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-blue-200"></div>
+              <div className="w-4 h-4 bg-yellow-400"></div>
               <span className="text-sm">Prévu</span>
             </div>
             <div className="flex items-center space-x-2">
@@ -565,7 +567,7 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
               <span className="text-sm">Réel (en retard)</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-gray-300"></div>
+              <div className="w-4 h-4 bg-orange-300"></div>
               <span className="text-sm">Non commencé</span>
             </div>
           </div>
