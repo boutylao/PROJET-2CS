@@ -124,10 +124,10 @@ export function WellDetails({ wellId }: WellDetailsProps) {
   ]
 
   const renderVisualisationContent = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="space-y-6 " >
+      <div className="grid grid-cols-1 lg:grid-cols-2 w-[930px]">
         {/* Progress Chart */}
-        <Card>
+        <Card className="w-[450px]">
           <CardHeader>
             <CardTitle className="text-lg">Visualisation de l'avancement globale des phases</CardTitle>
           </CardHeader>
@@ -184,35 +184,50 @@ export function WellDetails({ wellId }: WellDetailsProps) {
         </Card>
 
         {/* Well Architecture */}
-        <Card>
+        <Card className="w-[550px]">
           <CardHeader>
-            <CardTitle className="text-lg">Architecture du sondage du puit {well.puitId}</CardTitle>
+            <CardTitle className="text-lg">Architecture du sondage du puit {well.puitId}
+             <div className="flex text-sm font-normal pt-4"> <p>Phase </p>
+              <p className="pl-[45px]">Prévision </p>
+              <p className="pl-[320px]">Réel </p></div>
+             
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-around items-start h-[400px]">
-              <div className="flex flex-col items-start h-full top-10 w-1/6 gap-[80px]">
+            <div className="flex justify-around items-start w-[500px] h-[420px]">
+              <div className="flex flex-col items-start h-full pt-6  gap-[80px]">
                 <div className="flex flex-col items-center gap-[42px]">
                   {/* These phases should ideally come from well.currentPhase or a list of phases */}
+                  
                   <p className="font-semibold">26’’</p>
                   <p className="font-semibold">16’’</p>
                   <p className="font-semibold">12’’1/4</p>
                 </div>
-                <p className="font-semibold">8’’1/2</p>
+                <p className="font-semibold pt-9">8’’1/2</p>
               </div>
-              <div className="h-[400px] w-4/6 flex items-start">
+              <div className="flex flex-col ml-10 items-start h-full pt-6  gap-[80px]">
+                <div className="flex flex-col items-center gap-[42px]">
+                  {/* These phases should ideally come from well.currentPhase or a list of phases */}
+                  <p className="font-semibold">depthprevu phase 26"</p>
+                  <p className="font-semibold">depthprevu phase 16"</p>
+                  <p className="font-semibold">depthprevu phase 12"</p>
+                </div>
+                <p className="font-semibold pt-9">depthprevu phase 8"</p>
+              </div>
+              <div className="h-[400px] w-[350px] flex items-start">
                 <div className="relative w-full h-[300px]">
                   {/* Parois vertes gauche */}
-                  <div className="absolute left-[67px] w-[20px] h-[60px] top-0 bg-green-600 z-10" />
-                  <div className="absolute left-[91px] w-[20px] h-[105px] top-0 bg-green-600 z-10" />
-                  <div className="absolute left-[115px] w-[20px] h-[150px] top-0 bg-green-600 z-10" />
+                  <div className="absolute left-[40px] w-[20px] h-[60px] top-0 bg-yellow-400 z-10" />
+                  <div className="absolute left-[65px] w-[20px] h-[110px] top-0 bg-yellow-400 z-10" />
+                  <div className="absolute left-[90px] w-[20px] h-[175px] top-0 bg-yellow-400 z-10" />
 
                   {/* Parois vertes droite */}
-                  <div className="absolute right-0 w-[20px] h-[60px] top-0 bg-green-600 z-10" />
-                  <div className="absolute right-[24px] w-[20px] h-[105px] top-0 bg-green-600 z-10" />
-                  <div className="absolute right-[48px] w-[20px] h-[150px] top-0 bg-green-600 z-10" />
+                  <div className="absolute right-[54px] w-[20px] h-[60px] top-0 bg-green-600 z-10" />
+                  <div className="absolute right-[78px] w-[20px] h-[110px] top-0 bg-green-600 z-10" />
+                  <div className="absolute right-[102px] w-[20px] h-[175px] top-0 bg-green-600 z-10" />
 
                   {/* Corps du puits */}
-                  <div className="absolute right-[70px] top-[150px] w-1/4 h-[250px] bg-white border-2 border-black">
+                  <div className="absolute right-[123px] top-[175px] w-1/4 h-[250px] bg-white border-2 border-black">
                     {/* R1 R2 R3 + barres jaunes */}
                     {/* These labels and bars should ideally be dynamic based on well.objectives or similar */}
                     <div className="absolute top-[200px] left-1/2 -translate-x-1/2 text-sm">R1</div>
@@ -227,6 +242,16 @@ export function WellDetails({ wellId }: WellDetailsProps) {
                     ))}
                   </div>
                 </div>
+                
+              </div>
+              <div className="flex flex-col items-start h-full pt-6  gap-[80px]">
+                <div className="flex flex-col items-center gap-[42px]">
+                  {/* These phases should ideally come from well.currentPhase or a list of phases */}
+                  <p className="font-semibold">26’’</p>
+                  <p className="font-semibold">16’’</p>
+                  <p className="font-semibold">12’’1/4</p>
+                </div>
+                <p className="font-semibold pt-9">8’’1/2</p>
               </div>
             </div>
           </CardContent>

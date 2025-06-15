@@ -26,6 +26,7 @@ interface PhaseItem {
   coutPrevu: number
   coutReel: number
   delaiPrevu: number
+  depthPrevu: number
   delaiReel: number
   depassementCout: boolean
   depassementDelai: boolean

@@ -48,7 +48,7 @@ export function Sidebar({ activeRoute, onRouteChange }: SidebarProps) {
   const currentActiveRoute = getActiveRoute()
 
   return (
-<div className="w-[230px] h-screen fixed top-0 left-0 bg-slate-800 text-white z-50 rounded-tr-3xl">
+<div className="w-[230px] h-screen fixed top-[80px] left-0 bg-slate-800 text-white z-50 rounded-tr-3xl">
 <nav className="mt-8">
         {menuItems.map((item) => {
           const Icon = item.icon
