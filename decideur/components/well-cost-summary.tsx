@@ -313,9 +313,9 @@ export function WellCostSummary({ wellId }: WellCostSummaryProps) {
               <tbody>
                 {sortedData.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50 border-b">
-                     <td className="p-4">{item.id}</td>
-                    <td className="p-4 font-medium">{item.phase}</td>
-                    <td className="p-4">{item.operation}</td>
+                     <td className="p-4 text-sm">{item.id}</td>
+                    <td className="p-4 font-medium text-sm">{item.phase}</td>
+                    <td className="p-4 text-sm">{item.operation}</td>
                     <td className={`p-4 ${getCostColor(item.plannedCost, item.actualCost, item.costStatus)}`}>
                       {formatCurrency(item.actualCost)}
                     </td>

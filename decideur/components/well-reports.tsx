@@ -174,6 +174,8 @@ export function WellReports({ wellId }: WellReportsProps) {
                   <TableCell className="font-medium">{item.plannedOperation}</TableCell>
                   <TableCell>{item.date}</TableCell>
                   <TableCell>{item.phase}</TableCell>
+                  <TableCell>{item.anomalies}</TableCell>
+
                   <TableCell>
                     <Button
                       onClick={() => handleDownloadReport(item.id, item.plannedOperation)}
@@ -258,6 +260,7 @@ export function WellReports({ wellId }: WellReportsProps) {
                       <div className="text-sm text-gray-600">{item.id} - {item.plannedOperation}</div>
                     </div>
                     <div className="text-sm text-gray-500">{item.date}, {item.day}</div>
+                    
                   </div>
                 </div>
                 <Button

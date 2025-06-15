@@ -259,7 +259,7 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
   const totalActualDelay = calculateTotalDelay(delayData, false)
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 w-[900px]">
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4">
@@ -302,16 +302,16 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
       </div>
 
       {/* Delay Summary Table */}
-      <Card>
-        <CardContent className="p-0">
+      <Card className="w-[990px]">
+        <CardContent className="p-0 ">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-50">
                   <th className="text-left p-4 font-medium text-gray-600 border-b">Phase</th>
                   <th className="text-left p-4 font-medium text-gray-600 border-b">Opération</th>
-                  <th className="text-left p-4 font-medium text-gray-600 border-b">Profondeur</th>
-                  <th className="text-left p-4 font-medium text-gray-600 border-b">Délai Prévisionnel</th>
+                  <th className="text-left p-4 font-medium text-gray-600 border-b">Depth</th>
+                  <th className="text-left p-4 font-medium text-gray-600 border-b">Délai Prévu</th>
                   <th className="text-left p-4 font-medium text-gray-600 border-b">Délai Réel</th>
                   <th className="text-left p-4 font-medium text-gray-600 border-b">Statut</th>
                   <th className="text-left p-4 font-medium text-gray-600 border-b">Détail</th>
@@ -347,13 +347,13 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
                 ))}
 
                 {/* Total Row */}
-                <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
+                {/* <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
                   <td colSpan={3} className="p-4 text-right font-bold">
                     Total</td>
                   <td className="p-4 font-bold">{totalPlannedDelay}</td>
                   <td className={`p-4 font-bold ${getDelayColor(totalPlannedDelay, totalActualDelay)}`}> {totalActualDelay}</td>
                   <td className="p-4"></td>
-                  <td className="p-4"></td></tr>
+                  <td className="p-4"></td></tr> */}
               </tbody>
             </table>
             {/* Dialog placé en dehors du map */}
