@@ -33,6 +33,7 @@ interface PhaseItem {
   etatDelai: string
   couleurCout: string
   couleurDelai: string
+  
 }
 
 interface DelayItem {
@@ -112,8 +113,8 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
   
               if (phaseName.includes('26')) phaseName = '26"'
               else if (phaseName.includes('16')) phaseName = '16"'
-              else if (phaseName.includes('12')) phaseName = '12"1/4'
-              else if (phaseName.includes('8')) phaseName = '8"1/2'
+              else if (phaseName.includes('12')) phaseName = '12"'
+              else if (phaseName.includes('8')) phaseName = '8"'
   
               const phaseUrl = `http://localhost:8098/previsions/etat-par-phase/${wellId}/${phaseName}`
               const phaseResponse = await fetch(phaseUrl)
@@ -137,7 +138,7 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
                 operation: report.plannedOperation || "Opération standard",
                 activity: report.depth || "Profondeur non spécifiée",
                 plannedDelay: `${phase.delaiPrevu}j`,
-                actualDelay: `${phase.delaiReel}j`,
+                actualDelay:`${report.day}j`, 
                 depth: report.depth || "N/A",
                 delayStatus: phase.etatDelai
               }
@@ -259,7 +260,6 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
 
   return (
     <div className="space-y-6 p-6">
-      <h1 className="text-2xl font-bold text-gray-900">Sommaire des délais du puit {wellId}</h1>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4">
@@ -320,11 +320,11 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
               <tbody>
                 {sortedData.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50 border-b">
-                    <td className="p-4 font-medium">{item.phase}</td>
-                    <td className="p-4">{item.operation}</td>
-                    <td className="p-4">{item.depth}</td>
-                    <td className="p-4 text-orange-600">{item.plannedDelay}</td>
-                    <td className={`p-4 ${getDelayColor(item.plannedDelay, item.actualDelay, item.delayStatus)}`}>
+                    <td className="p-4 font-medium text-sm">{item.phase}</td>
+                    <td className="p-4 text-sm">{item.operation}</td>
+                    <td className="p-4 text-sm">{item.depth}</td>
+                    <td className="p-4 text-orange-600 text-sm">{item.plannedDelay}</td>
+                    <td className={`text-sm p-4 ${getDelayColor(item.plannedDelay, item.actualDelay, item.delayStatus)}`}>
                       {item.actualDelay}
                     </td>
                     <td className="p-4">
@@ -349,19 +349,15 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
                 {/* Total Row */}
                 <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
                   <td colSpan={3} className="p-4 text-right font-bold">
-                    Total
-                  </td>
+                    Total</td>
                   <td className="p-4 font-bold">{totalPlannedDelay}</td>
-                  <td className={`p-4 font-bold ${getDelayColor(totalPlannedDelay, totalActualDelay)}`}>
-                    {totalActualDelay}
-                  </td>
+                  <td className={`p-4 font-bold ${getDelayColor(totalPlannedDelay, totalActualDelay)}`}> {totalActualDelay}</td>
                   <td className="p-4"></td>
-                  <td className="p-4"></td> {/* Ajout d'une colonne vide pour le bouton détail */}
-                </tr>
+                  <td className="p-4"></td></tr>
               </tbody>
             </table>
             {/* Dialog placé en dehors du map */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen} cl>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen} >
   <DialogContent className="max-h-[70vh] flex flex-col">
     <DialogHeader className="flex-shrink-0">
       <DialogTitle>

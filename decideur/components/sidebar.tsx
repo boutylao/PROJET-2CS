@@ -13,7 +13,7 @@ const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { id: "wells-list", label: "Liste Puits", icon: List, path: "/wells" },
   { id: "progress-status", label: "Etat d'avancement", icon: TrendingUp, path: "/progress" },
-  { id: "alerts-notifications", label: "Alertes et Notifications", icon: Bell, path: "/alerts" },
+  { id: "alerts-notifications", label: "Alertes ", icon: Bell, path: "/alerts" },
   { id: "profile", label: "Profil", icon: User, path: "/profile" },
 ]
 
@@ -48,7 +48,7 @@ export function Sidebar({ activeRoute, onRouteChange }: SidebarProps) {
   const currentActiveRoute = getActiveRoute()
 
   return (
-    <div className="w-[260px] bg-slate-800 z-50  h-screen fixed text-white rounded-tr-3xl">
+    <div className="w-[230px] bg-slate-800 z-50  h-screen fixed text-white rounded-tr-3xl">
       <nav className="mt-8">
         {menuItems.map((item) => {
           const Icon = item.icon

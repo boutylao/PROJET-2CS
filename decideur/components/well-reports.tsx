@@ -92,7 +92,7 @@ export function WellReports({ wellId }: WellReportsProps) {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Rapports Journaliers du puits {wellId}</h1>
+      {/* <h1 className="text-2xl font-bold text-gray-900">Rapports Journaliers du puits {wellId}</h1> */}
     
             <div className="text-m text-gray-600 flex w-[200px]">  <p className="mr-4"> Total des rapports: </p>           <div className=" font-bold text-xl text-blue-600">{reportsData.length}</div>
           </div>

@@ -333,7 +333,7 @@ export function WellDetails({ wellId }: WellDetailsProps) {
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <div className="w-64 bg-gradient-to-b from-orange-600 to-orange-800 rounded-tr-3xl text-white">
+      <div className=" bg-gradient-to-b w-[220px] from-orange-600 to-orange-800 rounded-tr-3xl text-white">
         <nav className="mt-8">
           {sidebarItems.map((item) => {
             const Icon = item.icon
