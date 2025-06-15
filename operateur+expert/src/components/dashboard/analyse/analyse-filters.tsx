@@ -13,60 +13,91 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 
-const operationTypes = [
-  { value: 'all', label: 'Tous les types' },
-  { value: 'Exploration', label: 'Exploration' },
-  { value: 'Extraction', label: 'Extraction' },
-  { value: 'Maintenance', label: 'Maintenance' },
-  { value: 'Analyse', label: 'Analyse' },
-  { value: 'Test', label: 'Test' },
-  { value: 'Installation', label: 'Installation' },
+const phases = [
+  { value: 'all', label: 'Toutes les phases' },
+  { value: "26'", label: "26'" },
+  { value: '16"', label: '16"' },
+  { value: '12"1/4', label: '12"1/4' },
+  { value: '8"1/2', label: '8"1/2' },
 ];
 
-const drillingSites = [
-  { value: 'all', label: 'Tous les sites' },
-  { value: 'Site Alpha-7', label: 'Site Alpha-7' },
-  { value: 'Site Beta-3', label: 'Site Beta-3' },
-  { value: 'Site Gamma-5', label: 'Site Gamma-5' },
-  { value: 'Site Delta-2', label: 'Site Delta-2' },
-  { value: 'Site Epsilon-1', label: 'Site Epsilon-1' },
-];
+interface AnalyseFiltersProps {
+  onFiltersChange: (filters: {
+    phase: string;
+    drillingSite: string;
+    startDate: Date | null;
+    endDate: Date | null;
+  }) => void;
+  onSearchChange: (query: string) => void;
+}
 
-export function AnalyseFilters(): React.JSX.Element {
-  const [operationType, setOperationType] = React.useState('all');
+export function AnalyseFilters({
+  onFiltersChange,
+  onSearchChange,
+}: AnalyseFiltersProps): React.JSX.Element {
+  const [phase, setPhase] = React.useState('all');
   const [drillingSite, setDrillingSite] = React.useState('all');
   const [startDate, setStartDate] = React.useState<Date | null>(null);
   const [endDate, setEndDate] = React.useState<Date | null>(null);
+  const [availableSites, setAvailableSites] = React.useState<{ value: string; label: string }[]>([
+    { value: 'all', label: 'Tous les sites' },
+  ]);
 
-  const handleOperationTypeChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
-    setOperationType(event.target.value);
+  React.useEffect(() => {
+    fetch('http://localhost:8099/api/puits')
+      .then((res) => res.json())
+      .then((data) => {
+        const sites = data.map((puit: any) => ({
+          value: puit.puitName ?? puit.name ?? 'Unknown',
+          label: puit.puitName ?? puit.name ?? 'Unknown',
+        }));
+        setAvailableSites([{ value: 'all', label: 'Tous les sites' }, ...sites]);
+      })
+      .catch((err) => {
+        console.error('Erreur lors du chargement des puits :', err);
+      });
+  }, []);
+
+  const handlePhaseChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newPhase = event.target.value;
+    setPhase(newPhase);
+    onFiltersChange({ phase: newPhase, drillingSite, startDate, endDate });
   };
 
-  const handleDrillingSiteChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
-    setDrillingSite(event.target.value);
+  const handleDrillingSiteChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newSite = event.target.value;
+    setDrillingSite(newSite);
+    onFiltersChange({ phase, drillingSite: newSite, startDate, endDate });
   };
 
-  const handleReset = (): void => {
-    setOperationType('all');
+  const handleStartDateChange = (newValue: Date | null) => {
+    setStartDate(newValue);
+    onFiltersChange({ phase, drillingSite, startDate: newValue, endDate });
+  };
+
+  const handleEndDateChange = (newValue: Date | null) => {
+    setEndDate(newValue);
+    onFiltersChange({ phase, drillingSite, startDate, endDate: newValue });
+  };
+
+  const handleReset = () => {
+    setPhase('all');
     setDrillingSite('all');
     setStartDate(null);
     setEndDate(null);
+    onFiltersChange({ phase: 'all', drillingSite: 'all', startDate: null, endDate: null });
+    onSearchChange('');
   };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Card sx={{ p: 2 }}>
-        <Stack
-          direction={{
-            xs: 'column',
-            md: 'row',
-          }}
-          spacing={3}
-        >
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
           <OutlinedInput
             defaultValue=""
             fullWidth
-            placeholder="Rechercher des opérations"
+            placeholder="Rechercher des rapports"
+            onChange={(e) => onSearchChange(e.target.value)}
             startAdornment={
               <InputAdornment position="start">
                 <MagnifyingGlassIcon fontSize="var(--icon-fontSize-md)" />
@@ -74,15 +105,13 @@ export function AnalyseFilters(): React.JSX.Element {
             }
           />
           <TextField
-            label="Type d'opération"
-            name="operationType"
-            onChange={handleOperationTypeChange}
+            label="Phase"
             select
-            SelectProps={{ native: false }}
-            value={operationType}
+            value={phase}
+            onChange={handlePhaseChange}
             sx={{ minWidth: 200 }}
           >
-            {operationTypes.map((option) => (
+            {phases.map((option) => (
               <MenuItem key={option.value} value={option.value}>
                 {option.label}
               </MenuItem>
@@ -90,14 +119,12 @@ export function AnalyseFilters(): React.JSX.Element {
           </TextField>
           <TextField
             label="Site de forage"
-            name="drillingSite"
-            onChange={handleDrillingSiteChange}
             select
-            SelectProps={{ native: false }}
             value={drillingSite}
+            onChange={handleDrillingSiteChange}
             sx={{ minWidth: 200 }}
           >
-            {drillingSites.map((option) => (
+            {availableSites.map((option) => (
               <MenuItem key={option.value} value={option.value}>
                 {option.label}
               </MenuItem>
@@ -106,34 +133,23 @@ export function AnalyseFilters(): React.JSX.Element {
           <DatePicker
             label="Date de début"
             value={startDate}
-            onChange={(newValue) => {setStartDate(newValue);}}
+            onChange={handleStartDateChange}
             slotProps={{
-              textField: {
-                fullWidth: true,
-                sx: { minWidth: 170 }
-              }
+              textField: { fullWidth: true, sx: { minWidth: 170 } },
             }}
           />
           <DatePicker
             label="Date de fin"
             value={endDate}
-            onChange={(newValue) => {setEndDate(newValue);}}
+            onChange={handleEndDateChange}
             slotProps={{
-              textField: {
-                fullWidth: true,
-                sx: { minWidth: 170 }
-              }
+              textField: { fullWidth: true, sx: { minWidth: 170 } },
             }}
           />
           <Button
             color="inherit"
             onClick={handleReset}
-            sx={{
-              alignSelf: {
-                xs: 'center',
-                md: 'auto'
-              }
-            }}
+            sx={{ alignSelf: { xs: 'center', md: 'auto' } }}
           >
             Réinitialiser
           </Button>
