@@ -29,6 +29,23 @@ interface Well {
   };
 }
 
+// Interface pour les données de phase
+interface PhaseItem {
+  phaseName: string
+  coutPrevu: number
+  coutReel: number
+  delaiPrevu: number
+  depthPrevu: number
+  depthReel: number
+  delaiReel: number
+  depassementCout: boolean
+  depassementDelai: boolean
+  etatCout: string
+  etatDelai: string
+  couleurCout: string
+  couleurDelai: string
+}
+
 interface WellDetailsProps {
   wellId: string; // This is the ID passed from the dynamic route
 }
@@ -38,6 +55,8 @@ export function WellDetails({ wellId }: WellDetailsProps) {
   const [well, setWell] = useState<Well | null>(null); // State to store the fetched well data
   const [isLoading, setIsLoading] = useState(true); // Loading state
   const [error, setError] = useState<string | null>(null); // Error state
+  const [phaseData, setPhaseData] = useState<PhaseItem[]>([]); // State pour les données de phase
+  const [phaseLoading, setPhaseLoading] = useState(true); // Loading state pour les phases
 
   // Fetch well details when the component mounts or wellId changes
   useEffect(() => {
@@ -87,6 +106,43 @@ export function WellDetails({ wellId }: WellDetailsProps) {
       fetchDetails();
     }
   }, [wellId]); // Re-run effect if wellId changes
+
+  // Fetch phase data
+  useEffect(() => {
+    const fetchPhaseData = async () => {
+      if (!wellId) return;
+      
+      setPhaseLoading(true);
+      try {
+        const phases = ['26"', '16"', '12"', '8"'];
+        const phasePromises = phases.map(async (phaseName) => {
+          try {
+            const phaseUrl = `http://localhost:8098/previsions/etat-par-phase/${wellId}/${phaseName}`;
+            const phaseResponse = await fetch(phaseUrl);
+            if (!phaseResponse.ok) {
+              console.warn(`Could not fetch phase data for ${phaseName}: Status ${phaseResponse.status}`);
+              return null;
+            }
+            const phase: PhaseItem = await phaseResponse.json();
+            return phase;
+          } catch (e) {
+            console.error(`Error fetching phase ${phaseName}:`, e);
+            return null;
+          }
+        });
+
+        const phaseResults = await Promise.all(phasePromises);
+        const validPhases = phaseResults.filter((phase): phase is PhaseItem => phase !== null);
+        setPhaseData(validPhases);
+      } catch (err) {
+        console.error("Error fetching phase data:", err);
+      } finally {
+        setPhaseLoading(false);
+      }
+    };
+
+    fetchPhaseData();
+  }, [wellId]);
 
   // Display loading state
   if (isLoading) {
@@ -194,66 +250,79 @@ export function WellDetails({ wellId }: WellDetailsProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-around items-start w-[500px] h-[420px]">
-              <div className="flex flex-col items-start h-full pt-6  gap-[80px]">
-                <div className="flex flex-col items-center gap-[42px]">
-                  {/* These phases should ideally come from well.currentPhase or a list of phases */}
-                  
-                  <p className="font-semibold">26’’</p>
-                  <p className="font-semibold">16’’</p>
-                  <p className="font-semibold">12’’1/4</p>
-                </div>
-                <p className="font-semibold pt-9">8’’1/2</p>
+            {phaseLoading ? (
+              <div className="flex items-center justify-center h-[420px]">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-500 mr-2" />
+                <span>Chargement des données de phase...</span>
               </div>
-              <div className="flex flex-col ml-10 items-start h-full pt-6  gap-[80px]">
-                <div className="flex flex-col items-center gap-[42px]">
-                  {/* These phases should ideally come from well.currentPhase or a list of phases */}
-                  <p className="font-semibold">depthprevu phase 26"</p>
-                  <p className="font-semibold">depthprevu phase 16"</p>
-                  <p className="font-semibold">depthprevu phase 12"</p>
-                </div>
-                <p className="font-semibold pt-9">depthprevu phase 8"</p>
-              </div>
-              <div className="h-[400px] w-[350px] flex items-start">
-                <div className="relative w-full h-[300px]">
-                  {/* Parois vertes gauche */}
-                  <div className="absolute left-[40px] w-[20px] h-[60px] top-0 bg-yellow-400 z-10" />
-                  <div className="absolute left-[65px] w-[20px] h-[110px] top-0 bg-yellow-400 z-10" />
-                  <div className="absolute left-[90px] w-[20px] h-[175px] top-0 bg-yellow-400 z-10" />
-
-                  {/* Parois vertes droite */}
-                  <div className="absolute right-[54px] w-[20px] h-[60px] top-0 bg-green-600 z-10" />
-                  <div className="absolute right-[78px] w-[20px] h-[110px] top-0 bg-green-600 z-10" />
-                  <div className="absolute right-[102px] w-[20px] h-[175px] top-0 bg-green-600 z-10" />
-
-                  {/* Corps du puits */}
-                  <div className="absolute right-[123px] top-[175px] w-1/4 h-[250px] bg-white border-2 border-black">
-                    {/* R1 R2 R3 + barres jaunes */}
-                    {/* These labels and bars should ideally be dynamic based on well.objectives or similar */}
-                    <div className="absolute top-[200px] left-1/2 -translate-x-1/2 text-sm">R1</div>
-                    <div className="absolute top-[130px] left-1/2 -translate-x-1/2 text-sm">R2</div>
-                    <div className="absolute top-[60px] left-1/2 -translate-x-1/2 text-sm">R3</div>
-
-                    {[60, 130, 200].map((top, i) => (
-                      <div key={i}>
-                        <div className="absolute left-[-25px] w-[30px] h-[8px] bg-yellow-400" style={{ top: `${top}px` }} />
-                        <div className="absolute right-[-25px] w-[30px] h-[8px] bg-yellow-400" style={{ top: `${top}px` }} />
-                      </div>
+            ) : (
+              <div className="flex justify-around items-start w-[500px] h-[420px]">
+                <div className="flex flex-col items-start h-full pt-6 gap-[80px]">
+                  <div className="flex flex-col items-center gap-[42px]">
+                    {/* Phases dynamiques basées sur les données récupérées */}
+                    {phaseData.map((phase, index) => (
+                      <p key={index} className="font-semibold">{phase.phaseName}</p>
                     ))}
                   </div>
                 </div>
                 
-              </div>
-              <div className="flex flex-col items-start h-full pt-6  gap-[80px]">
-                <div className="flex flex-col items-center gap-[42px]">
-                  {/* These phases should ideally come from well.currentPhase or a list of phases */}
-                  <p className="font-semibold">26’’</p>
-                  <p className="font-semibold">16’’</p>
-                  <p className="font-semibold">12’’1/4</p>
+                <div className="flex flex-col ml-10 items-start h-full pt-6 gap-[80px]">
+                  <div className="flex flex-col items-center gap-[42px]">
+                    {/* Profondeurs prévues */}
+                    {phaseData.map((phase, index) => (
+                      <p key={index} className="font-semibold text-blue-600">
+                        {phase.depthPrevu}m
+                      </p>
+                    ))}
+                  </div>
                 </div>
-                <p className="font-semibold pt-9">8’’1/2</p>
+                
+                <div className="h-[400px] w-[350px] flex items-start">
+                  <div className="relative w-full h-[300px]">
+                    {/* Parois vertes gauche */}
+                    <div className="absolute left-[40px] w-[20px] h-[60px] top-0 bg-yellow-400 z-10" />
+                    <div className="absolute left-[65px] w-[20px] h-[110px] top-0 bg-yellow-400 z-10" />
+                    <div className="absolute left-[90px] w-[20px] h-[175px] top-0 bg-yellow-400 z-10" />
+
+                    {/* Parois vertes droite */}
+                   {/* Parois vertes droite */}
+        <div className="absolute right-[37px] w-[20px] h-[60px] top-0" style={{ backgroundColor: phaseData[0]?.depthReel > phaseData[0]?.depthPrevu ? 'red' : phaseData[0]?.depthReel < phaseData[0]?.depthPrevu ? 'green' : 'green', zIndex: 10 }} />
+        <div className="absolute right-[62px] w-[20px] h-[110px] top-0" style={{ backgroundColor: phaseData[1]?.depthReel > phaseData[1]?.depthPrevu ? 'red' : phaseData[1]?.depthReel < phaseData[1]?.depthPrevu ? 'green' : 'green', zIndex: 10 }} />
+        <div className="absolute right-[86px] w-[20px] h-[175px] top-0" style={{ backgroundColor: phaseData[2]?.depthReel > phaseData[2]?.depthPrevu ? 'red' : phaseData[2]?.depthReel < phaseData[2]?.depthPrevu ? 'green' : 'green', zIndex: 10 }} />
+                    {/* Corps du puits */}
+                    <div className="absolute right-[107px] top-[175px] w-1/4 h-[250px] bg-white border-2 border-black">
+                      {/* R1 R2 R3 + barres jaunes */}
+                      {/* These labels and bars should ideally be dynamic based on well.objectives or similar */}
+                      <div className="absolute top-[200px] left-1/2 -translate-x-1/2 text-sm">R1</div>
+                      <div className="absolute top-[130px] left-1/2 -translate-x-1/2 text-sm">R2</div>
+                      <div className="absolute top-[60px] left-1/2 -translate-x-1/2 text-sm">R3</div>
+
+                      {[60, 130, 200].map((top, i) => (
+                        <div key={i}>
+                          <div className="absolute left-[-25px] w-[30px] h-[8px] bg-yellow-400" style={{ top: `${top}px` }} />
+                          <div className="absolute right-[-25px] w-[30px] h-[8px] bg-yellow-400" style={{ top: `${top}px` }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col ml-10 items-start h-full pt-6 gap-[80px]">
+                  <div className="flex flex-col items-center gap-[42px]">
+                    {/* Profondeurs réelles */}
+                    {phaseData.map((phase, index) => (
+                      <p key={index} className={`font-semibold ${
+                        phase.depthReel > phase.depthPrevu ? 'text-red-600' : 
+                        phase.depthReel < phase.depthPrevu ? 'text-green-600' : 
+                        'text-gray-600'
+                      }`}>
+                        {phase.depthReel > 0 ? `${phase.depthReel}m` : 'N/A'}
+                      </p>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -321,6 +390,69 @@ export function WellDetails({ wellId }: WellDetailsProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Phase Summary Table */}
+      {!phaseLoading && phaseData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Résumé des Phases</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left p-4 font-medium text-gray-600 border-b">Phase</th>
+                    <th className="text-left p-4 font-medium text-gray-600 border-b">Profondeur Prévue</th>
+                    <th className="text-left p-4 font-medium text-gray-600 border-b">Profondeur Réelle</th>
+                    <th className="text-left p-4 font-medium text-gray-600 border-b">Délai Prévu</th>
+                    <th className="text-left p-4 font-medium text-gray-600 border-b">Délai Réel</th>
+                    <th className="text-left p-4 font-medium text-gray-600 border-b">Statut Coût</th>
+                    <th className="text-left p-4 font-medium text-gray-600 border-b">Statut Délai</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {phaseData.map((phase, index) => (
+                    <tr key={index} className="hover:bg-gray-50 border-b">
+                      <td className="p-4 font-medium text-sm">{phase.phaseName}</td>
+                      <td className="p-4 text-blue-600 text-sm">{phase.depthPrevu}m</td>
+                      <td className={`p-4 text-sm ${
+                        phase.depthReel > phase.depthPrevu ? 'text-red-600' : 
+                        phase.depthReel < phase.depthPrevu ? 'text-green-600' : 
+                        'text-gray-600'
+                      }`}>
+                        {phase.depthReel > 0 ? `${phase.depthReel}m` : 'N/A'}
+                      </td>
+                      <td className="p-4 text-orange-600 text-sm">{phase.delaiPrevu}j</td>
+                      <td className="p-4 text-sm">{phase.delaiReel}j</td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          phase.etatCout === "DANGER" ? "bg-red-100 text-red-600" :
+                          phase.etatCout === "NORMAL" ? "bg-green-100 text-green-800" :
+                          phase.etatCout === "ATTENTION" ? "bg-yellow-100 text-yellow-800" :
+                          "bg-gray-100 text-gray-800"
+                        }`}>
+                          {phase.etatCout}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          phase.etatDelai === "DANGER" ? "bg-red-100 text-red-600" :
+                          phase.etatDelai === "NORMAL" ? "bg-green-100 text-green-800" :
+                          phase.etatDelai === "ATTENTION" ? "bg-yellow-100 text-yellow-800" :
+                          "bg-gray-100 text-gray-800"
+                        }`}>
+                          {phase.etatDelai}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 
