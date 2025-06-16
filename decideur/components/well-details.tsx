@@ -1,7 +1,16 @@
 "use client"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 import { BarChart3, DollarSign, Clock, FileText, Eye, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { WellCostSummary } from "@/components/well-cost-summary"
@@ -72,34 +81,66 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
   const plannedProgressPoints = phaseData.map((phase) => {
     cumulativePlannedDays += phase.delaiPrevu;
     return {
-      x: cumulativePlannedDays,
-      y: phase.depthPrevu,
-      label: `${phase.phaseName}\n@ ${phase.depthPrevu}m (${phase.delaiPrevu} days)`
+      day: cumulativePlannedDays,
+      depth: phase.depthPrevu,
+      type: 'planned',
+      phase: phase.phaseName
     };
   });
 
   // Add a starting point for planned progress
-  const plannedChartPoints = [{ x: 0, y: 0, label: "Start" }, ...plannedProgressPoints];
-
+  const plannedChartPoints = [
+    { day: 0, depth: 0, type: 'planned', phase: 'Start' }, 
+    ...plannedProgressPoints
+  ];
   // The overall planned total depth is well.totalDepth
   // The overall planned total days is the last cumulativePlannedDays
-  const overallPlannedDays = plannedProgressPoints.length > 0 ? plannedProgressPoints[plannedProgressPoints.length - 1].x : 0;
+  const overallPlannedDays = plannedProgressPoints.length > 0 ? plannedProgressPoints[plannedProgressPoints.length - 1].day : 0;
 
 
   // --- Actual Progress Points (from reports) ---
   const actualProgressPoints = reports
-    .map(report => ({
-      x: parseFloat(report.day), // Parse day string to number
-      y: parseFloat(report.depth), // Parse depth string to number
-      label: `Report Day ${report.day}: ${report.depth}ft`
-    }))
-    .filter(point => !isNaN(point.x) && !isNaN(point.y)) // Filter out invalid points
-    .sort((a, b) => a.x - b.x); // Sort by day to ensure correct line drawing
+  .map(report => ({
+    day: parseFloat(report.day), // Parse day string to number
+    depth: parseFloat(report.depth), // Parse depth string to number
+    type: 'actual',
+    phase: report.phase
+  }))
+  .filter(point => !isNaN(point.day) && !isNaN(point.depth)) // Filter out invalid points
+  .sort((a, b) => a.day - b.day); // Sort by day to ensure correct line drawing
 
   // Ensure actual progress starts from (0,0) if there are reports
   const actualChartPoints = actualProgressPoints.length > 0
-    ? [{ x: 0, y: 0, label: "Actual Start" }, ...actualProgressPoints]
-    : [];
+  ? [{ day: 0, depth: 0, type: 'actual', phase: 'Actual Start' }, ...actualProgressPoints]
+  : [];
+
+    const combinedData: any[] | undefined = [];
+  
+    // Add all planned points
+    plannedChartPoints.forEach(point => {
+      combinedData.push({
+        day: point.day,
+        plannedDepth: point.depth,
+        actualDepth: null,
+        phase: point.phase
+      });
+    });
+    actualChartPoints.forEach(point => {
+      // Check if we already have a data point for this day
+      const existingPoint = combinedData.find(p => p.day === point.day);
+      if (existingPoint) {
+        existingPoint.actualDepth = point.depth;
+      } else {
+        combinedData.push({
+          day: point.day,
+          plannedDepth: null,
+          actualDepth: point.depth,
+          phase: point.phase
+        });
+      }
+    });
+
+    combinedData.sort((a, b) => a.day - b.day);
 
   // Determine max values for scaling, considering both planned and actual data
   const allXValues = [
@@ -112,8 +153,48 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
     ...reports.map(r => parseFloat(r.depth)).filter(d => !isNaN(d))
   ];
 
-  const maxTime = Math.max(1, ...allXValues);
-  const maxDepth = Math.max(1, ...allYValues);
+  const currentDay = actualProgressPoints.length > 0 ? Math.max(...actualProgressPoints.map(p => p.day)) : 0;
+  const currentDepth = actualProgressPoints.length > 0 ? Math.max(...actualProgressPoints.map(p => p.depth)) : 0;
+  const maxDepth = Math.max(well.totalDepth || 0, ...phaseData.map(p => p.depthPrevu));
+  const maxTime = Math.max(...allXValues, overallPlannedDays);
+  const progressPercentage = maxDepth > 0 ? (currentDepth / maxDepth) * 100 : 0;
+
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
+          <p className="font-semibold text-gray-800">{`Jour ${label}`}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} style={{ color: entry.color }} className="text-sm">
+              {entry.dataKey === 'plannedDepth' ? 'Planifié' : 'Réel'}: {entry.value}ft
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Custom dot for highlighting current position
+  const CustomDot = (props: any) => {
+    const { cx, cy, payload, dataKey } = props;
+    
+    // Only highlight the last actual point
+    if (dataKey === 'actualDepth' && payload.actualDepth === currentDepth && payload.day === currentDay) {
+      return (
+        <g>
+          <circle cx={cx} cy={cy} r={8} fill="#3b82f6" stroke="white" strokeWidth={3} />
+          <circle cx={cx} cy={cy} r={12} fill="none" stroke="#3b82f6" strokeWidth={2} strokeOpacity={0.3}>
+            <animate attributeName="r" values="12;18;12" dur="2s" repeatCount="indefinite" />
+            <animate attributeName="stroke-opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite" />
+          </circle>
+        </g>
+      );
+    }
+    
+    return <circle cx={cx} cy={cy} r={4} fill={dataKey === 'plannedDepth' ? '#f97316' : '#3b82f6'} />;
+  };
 
   // Chart dimensions in pixels (relative to the container)
   const CHART_WIDTH = 320;
@@ -126,184 +207,168 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
     return { x: pixelX, y: pixelY };
   };
 
-  // Create points for the planned polyline
-  const plannedPolylinePoints = plannedChartPoints.map(point => {
-    const coords = getPixelCoords(point.x, point.y);
-    return `${coords.x},${coords.y}`;
-  }).join(' ');
+  // const plannedPolylinePoints = plannedChartPoints.map(point => {
+  //   const coords = getPixelCoords(point.x, point.y);
+  //   return `${coords.x},${coords.y}`;
+  // }).join(' ');
 
-  // Create points for the actual polyline
-  const actualPolylinePoints = actualChartPoints.map(point => {
-    const coords = getPixelCoords(point.x, point.y);
-    return `${coords.x},${coords.y}`;
-  }).join(' ');
+  // const actualPolylinePoints = actualChartPoints.map(point => {
+  //   const coords = getPixelCoords(point.x, point.y);
+  //   return `${coords.x},${coords.y}`;
+  // }).join(' ');
 
   return (
-    <Card className="w-[450px]">
-      <CardHeader>
-        <CardTitle className="text-lg mb-8">Visualisation de l'avancement globale des phases</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="relative h-80 bg-yellow-50 rounded-lg overflow-hidden p-4">
-          {/* Background Grid */}
-          <div className="absolute inset-4">
-            {/* Vertical Lines (Time Axis) */}
-            {Array.from({ length: 9 }).map((_, i) => (
-              <div
-                key={`v-${i}`}
-                className="absolute top-0 bottom-0 border-l border-yellow-200"
-                style={{ left: `${(i / 8) * 100}%` }}
-              />
-            ))}
-            {/* Horizontal Lines (Depth Axis) */}
-            {Array.from({ length: 7 }).map((_, i) => (
-              <div
-                key={`h-${i}`}
-                className="absolute left-0 right-0 border-t border-yellow-200"
-                style={{ top: `${(i / 6) * 100}%` }}
-              />
-            ))}
-          </div>
-
-          {/* Axes and Labels */}
-          {/* Y-Axis - Profondeur */}
-          <div className="absolute left-2 top-4 bottom-4 flex flex-col justify-between text-xs text-gray-600">
-            {Array.from({ length: 6 }).map((_, i) => { // 0, 20%, 40%, 60%, 80%, 100%
-              const depthValue = Math.round((maxDepth * (5 - i)) / 5); // Inverted for display
-              return <span key={i}>{depthValue}</span>;
-            })}
-          </div>
-
-          {/* X-Axis - Temps */}
-          <div className="absolute bottom-2 left-12 right-4 flex justify-between text-xs text-gray-600">
-            {Array.from({ length: 5 }).map((_, i) => { // 0, 25%, 50%, 75%, 100%
-              const timeValue = Math.round((maxTime * i) / 4);
-              return <span key={i}>{timeValue}</span>;
-            })}
-          </div>
-
-          {/* Chart Area */}
-          <div className="absolute left-12 top-8  right-4 bottom-8">
-            <svg className="w-full h-full">
-              {/* Planned Line (Red) */}
-              <polyline
-                fill="none"
-                stroke="#dc2626"
-                strokeWidth="3"
-                points={plannedPolylinePoints}
-              />
-
-              {/* Planned Data Points (Red) */}
-              {plannedChartPoints.map((point, i) => {
-                const coords = getPixelCoords(point.x, point.y);
-                return (
-                  <circle
-                    key={`planned-${i}`}
-                    cx={coords.x}
-                    cy={coords.y}
-                    r="4"
-                    fill="#dc2626"
-                  />
-                );
-              })}
-
-              {/* Actual Line (Blue) */}
-              {actualChartPoints.length > 1 && ( // Only draw if there's more than just the start point
-                <polyline
-                  fill="none"
-                  stroke="#3b82f6" // Blue color for actual
-                  strokeWidth="3"
-                  points={actualPolylinePoints}
-                />
-              )}
-
-              {/* Actual Data Points (Blue) */}
-              {actualChartPoints.map((point, i) => {
-                const coords = getPixelCoords(point.x, point.y);
-                return (
-                  <circle
-                    key={`actual-${i}`}
-                    cx={coords.x}
-                    cy={coords.y}
-                    r="4"
-                    fill="#3b82f6" // Blue color for actual
-                  />
-                );
-              })}
-            </svg>
-          </div>
-
-          {/* Labels for Planned points */}
-          {/* {plannedChartPoints.map((point, i) => {
-            if (point.label === "Start") return null;
-            const coords = getPixelCoords(point.x, point.y);
-            return (
-              <div
-                key={`label-planned-${i}`}
-                className="absolute text-[10px] text-gray-700 px-1 py-0.5 rounded shadow-sm whitespace-pre-wrap text-center"
-                style={{
-                  left: `calc(12px + ${(coords.x / CHART_WIDTH) * (360-12)}px)`,
-                  top: `calc(8px + ${(coords.y / CHART_HEIGHT) * (264-8)}px)`,
-                  transform: 'translate(-50%, -110%)'
-                }}
-              >
-                {point.label}
-              </div>
-            );
-          })} */}
-
-         
-
-          
-
-          {/* Core Info - if available in data */}
-          {well.coreInfo && (
-            <div className="absolut e bottom-4 right-8 text-xs text-gray-600 bg-white px-1 rounded">
-              {well.coreInfo}
-            </div>
-          )}
-
-          {/* Axis Titles */}
-         
-        
-
-          {/* Legend */}
-          
+    <Card className="w-[480px] shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+    <CardHeader className="pb-2">
+      <CardTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
+        <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"></div>
+        Visualisation de l'avancement global
+      </CardTitle>
+      <div className="flex items-center gap-4 text-sm text-gray-600">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+          <span>Planifié: {overallPlannedDays} jours</span>
         </div>
-      </CardContent>
-      <div className="absolute top-[630px]  left-1/2 text-xs text-gray-600 transform -translate-x-1/2">
-            Time/Day
-          </div>
-          <div className="absolute left-[265px] top-[286px] text-xs text-gray-600 transform  origin-center">
-            Depth/Feet
-          </div>
-          <div className="  ml-[40px] flex text-xs gap-4">
-            <div className="flex items-center">
-              <span className="inline-block w-3 h-3 bg-red-600 rounded-full mr-1"></span>
-              <span>Planned</span>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+          <span>TD: {well.totalDepth}ft</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+          <span>Progression: {progressPercentage.toFixed(1)}%</span>
+        </div>
+      </div>
+    </CardHeader>
+    <CardContent className="pt-4">
+      <div className="relative h-96 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-6 border border-slate-200 shadow-inner">
+        
+        {/* Current Status Indicator */}
+        {actualChartPoints.length > 0 && (
+          <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-gray-200 z-10">
+            <div className="text-xs font-semibold text-gray-700 mb-1">Statut Actuel</div>
+            <div className="text-sm font-bold text-blue-600">
+              Jour {currentDay} - {currentDepth.toFixed(0)}ft
             </div>
-            <div className="flex items-center">
-              <span className="inline-block w-3 h-3 bg-blue-600 rounded-full mr-1"></span>
-              <span>Actual</span>
+            <div className="w-16 bg-gray-200 rounded-full h-1.5 mt-2">
+              <div 
+                className="bg-gradient-to-r from-blue-500 to-green-500 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(100, progressPercentage)}%` }}
+              ></div>
             </div>
           </div>
-          <div className="flex mt-3 gap-10 ml-10">
-            {/* Box "Planned" - now uses overallPlannedDays */}
-          <div className=" ml-6 flex  text-black px-3 py-1 rounded text-sm font-medium">
-            <p className="text-orange-600 mr-1"> Planned :</p>
-             {overallPlannedDays} Days
-          </div>
+        )}
 
-          {/* Box TD */}
-          {well.totalDepth && (
-            <div className=" bottom-12 flex mr-1  ml-6  text-black px-3 py-1 rounded text-sm mb-4 font-medium">
-             <p className=" text-orange-600 mr-1">TD : </p> {well.totalDepth}ft
-            </div>
-          )}
+        {/* Core Info */}
+        {well.coreInfo && (
+          <div className="absolute top-4 right-4 text-xs text-gray-600 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-lg shadow-sm border border-gray-200 z-10">
+            {well.coreInfo}
           </div>
-          
+        )}
 
-    </Card>
+        {/* Recharts Graph */}
+        <div className="h-80 mt-8">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={combinedData}
+              margin={{
+                top: 20,
+                right: 30,
+                left: 40,
+                bottom: 60,
+              }}
+            >
+              <defs>
+                <linearGradient id="plannedGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#f97316" stopOpacity={0.1}/>
+                </linearGradient>
+                <linearGradient id="actualGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                </linearGradient>
+              </defs>
+              
+              <CartesianGrid 
+                strokeDasharray="3 3" 
+                stroke="#e2e8f0" 
+                strokeOpacity={0.6}
+              />
+              
+              <XAxis 
+                dataKey="day"
+                type="number"
+                scale="linear"
+                domain={['dataMin', 'dataMax']}
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                axisLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
+                tickLine={{ stroke: '#94a3b8' }}
+              />
+              
+              <YAxis 
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                axisLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
+                tickLine={{ stroke: '#94a3b8' }}
+                label={{ 
+                  value: 'Profondeur (Pieds)', 
+                  angle: -90, 
+                  position: 'insideLeft',
+                  style: { textAnchor: 'middle', fill: '#64748b', fontSize: '12px', fontWeight: 'bold' }
+                }}
+              />
+              
+              <Tooltip content={<CustomTooltip />} />
+              
+              <Legend 
+                wrapperStyle={{ paddingTop: '20px' }}
+                iconType="line"
+              />
+
+              {/* Planned Line */}
+              <Line
+                type="linear"
+                dataKey="plannedDepth"
+                stroke="#f97316"
+                strokeWidth={3}
+                dot={<CustomDot />}
+                connectNulls={false}
+                name="Planifié"
+                fill="url(#plannedGradient)"
+              />
+
+              {/* Actual Line */}
+              <Line
+                type="linear"
+                dataKey="actualDepth"
+                stroke="#3b82f6"
+                strokeWidth={3}
+                dot={<CustomDot />}
+                connectNulls={false}
+                name="Réel"
+                fill="url(#actualGradient)"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Axis Labels */}
+        <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-sm font-semibold text-gray-700 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-200">
+          Temps (Jours)
+        </div>
+      </div>
+
+      {/* Modern Legend */}
+      <div className="flex justify-center gap-8 mt-4 p-4 bg-white rounded-lg shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className="w-4 h-4 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 shadow-sm"></div>
+          <span className="text-sm font-medium text-gray-700">Planifié</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-4 h-4 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 shadow-sm"></div>
+          <span className="text-sm font-medium text-gray-700">Réel</span>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
   );
 };
 
@@ -510,9 +575,9 @@ export function WellDetails({ wellId }: WellDetailsProps) {
                     <div className="absolute left-[90px] w-[20px] h-[175px] top-0 bg-yellow-400 z-10" />
 
                     {/* Parois vertes droite */}
-                    <div className="absolute right-[37px] w-[20px] h-[60px] top-0" style={{ backgroundColor: phaseData[0]?.depthReel > phaseData[0]?.depthPrevu ? 'red' : phaseData[0]?.depthReel < phaseData[0]?.depthPrevu ? 'green' : 'green', zIndex: 10 }} />
-                    <div className="absolute right-[62px] w-[20px] h-[110px] top-0" style={{ backgroundColor: phaseData[1]?.depthReel > phaseData[1]?.depthPrevu ? 'red' : phaseData[1]?.depthReel < phaseData[1]?.depthPrevu ? 'green' : 'green', zIndex: 10 }} />
-                    <div className="absolute right-[86px] w-[20px] h-[175px] top-0" style={{ backgroundColor: phaseData[2]?.depthReel > phaseData[2]?.depthPrevu ? 'red' : phaseData[2]?.depthReel < phaseData[2]?.depthPrevu ? 'green' : 'green', zIndex: 10 }} />
+                    <div className="absolute right-[37px] w-[20px] h-[60px] top-0" style={{ backgroundColor: phaseData[0]?.depthReel < phaseData[0]?.depthPrevu ? 'red' : phaseData[0]?.depthReel > phaseData[0]?.depthPrevu ? 'green' : 'green', zIndex: 10 }} />
+                    <div className="absolute right-[62px] w-[20px] h-[110px] top-0" style={{ backgroundColor: phaseData[1]?.depthReel < phaseData[1]?.depthPrevu ? 'red' : phaseData[1]?.depthReel > phaseData[1]?.depthPrevu ? 'green' : 'green', zIndex: 10 }} />
+                    <div className="absolute right-[86px] w-[20px] h-[175px] top-0" style={{ backgroundColor: phaseData[2]?.depthReel < phaseData[2]?.depthPrevu ? 'red' : phaseData[2]?.depthReel > phaseData[2]?.depthPrevu ? 'green' : 'green', zIndex: 10 }} />
 
                     {/* Corps du puits */}
                     <div className="absolute right-[107px] top-[175px] w-1/4 h-[250px] bg-white border-2 border-black">
@@ -536,8 +601,8 @@ export function WellDetails({ wellId }: WellDetailsProps) {
                     {/* Profondeurs réelles */}
                     {phaseData.map((phase, index) => (
                       <p key={index} className={`font-semibold ${
-                        phase.depthReel > phase.depthPrevu ? 'text-red-600' :
-                        phase.depthReel < phase.depthPrevu ? 'text-green-600' :
+                        phase.depthReel < phase.depthPrevu ? 'text-red-600' :
+                        phase.depthReel > phase.depthPrevu ? 'text-green-600' :
                         'text-gray-600'
                       }`}>
                         {phase.depthReel > 0 ? `${phase.depthReel}m` : 'N/A'}

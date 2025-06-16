@@ -125,10 +125,10 @@ export function WellCostSummary({ wellId }: WellCostSummaryProps) {
             try {
               let phaseName = report.phase.trim()
   
-              if (phaseName.includes('26')) phaseName = '26"'
-              else if (phaseName.includes('16')) phaseName = '16"'
-              else if (phaseName.includes('12')) phaseName = '12"'
-              else if (phaseName.includes('8')) phaseName = '8"'
+              if (phaseName.includes('26')) phaseName = "26\""
+              else if (phaseName.includes('16')) phaseName = "16\""
+              else if (phaseName.includes('12')) phaseName = "12\""
+              else if (phaseName.includes('8')) phaseName =  "8\""
   
               const phaseUrl = `http://localhost:8098/previsions/etat-par-phase/${wellId}/${phaseName}`
               const phaseResponse = await fetch(phaseUrl)

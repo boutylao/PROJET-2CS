@@ -125,10 +125,10 @@ export function WellDelaySummary({ wellId }: WellDelaySummaryProps) {
         const combinedData: DelayItem[] = await Promise.all(
           reportsWithDescriptions.map(async (report) => {
             let phaseNameNormalized = report.phase.trim();
-            if (phaseNameNormalized.includes('26')) phaseNameNormalized = '26"';
-            else if (phaseNameNormalized.includes('16')) phaseNameNormalized = '16"';
-            else if (phaseNameNormalized.includes('12')) phaseNameNormalized = '12"';
-            else if (phaseNameNormalized.includes('8')) phaseNameNormalized = '8"';
+            if (phaseNameNormalized.includes('26')) phaseNameNormalized = "26\"";
+            else if (phaseNameNormalized.includes('16')) phaseNameNormalized = "16\"";
+            else if (phaseNameNormalized.includes('12')) phaseNameNormalized = "12\"";
+            else if (phaseNameNormalized.includes('8')) phaseNameNormalized = "8\"";
 
             // Find the corresponding phase data from the already fetched phaseData
             const phase = fetchedPhaseData.find(p => p.phaseName === phaseNameNormalized);
