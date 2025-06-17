@@ -27,6 +27,7 @@ interface Well {
   currentPhase?: string;
   cost?: string;
   delay?: string;
+  delaiReel: number; // Actual delay in days
   // plannedDays?: number; // REMOVED - no longer directly on Well
   actualDays?: number; // Total actual days spent so far (might be redundant with reports.day)
   sections?: { name: string; size: string; depth: number; plannedDays: number }[]; // Still useful for section-specific visualization if plannedDays per section is available.
@@ -113,6 +114,10 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
   const actualChartPoints = actualProgressPoints.length > 0
   ? [{ day: 0, depth: 0, type: 'actual', phase: 'Actual Start' }, ...actualProgressPoints]
   : [];
+    // ... (code existant de WellDetails)
+
+  // Calculer la valeur finale du délai prévu et réel de la dernière phase
+ 
 
     const combinedData: any[] | undefined = [];
   
@@ -144,19 +149,18 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
 
   // Determine max values for scaling, considering both planned and actual data
   const allXValues = [
-    overallPlannedDays,
+    
     ...reports.map(r => parseFloat(r.day)).filter(d => !isNaN(d))
   ];
   const allYValues = [
     well.totalDepth || 0,
-    ...phaseData.map(p => p.depthPrevu),
     ...reports.map(r => parseFloat(r.depth)).filter(d => !isNaN(d))
   ];
 
   const currentDay = actualProgressPoints.length > 0 ? Math.max(...actualProgressPoints.map(p => p.day)) : 0;
   const currentDepth = actualProgressPoints.length > 0 ? Math.max(...actualProgressPoints.map(p => p.depth)) : 0;
   const maxDepth = Math.max(well.totalDepth || 0, ...phaseData.map(p => p.depthPrevu));
-  const maxTime = Math.max(...allXValues, overallPlannedDays);
+  const maxTime = Math.max(...allXValues);
   const progressPercentage = maxDepth > 0 ? (currentDepth / maxDepth) * 100 : 0;
 
 
@@ -178,23 +182,30 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
 
   // Custom dot for highlighting current position
   const CustomDot = (props: any) => {
-    const { cx, cy, payload, dataKey } = props;
+        const { cx, cy, payload, dataKey } = props;
+        
+        // Vérifie si la valeur de la dataKey est null ou undefined pour le payload actuel.
+        // Si c'est le cas, ne rien dessiner (retourne null).
+        if (payload[dataKey] === null || payload[dataKey] === undefined) {
+          return null; 
+        }
     
-    // Only highlight the last actual point
-    if (dataKey === 'actualDepth' && payload.actualDepth === currentDepth && payload.day === currentDay) {
-      return (
-        <g>
-          <circle cx={cx} cy={cy} r={8} fill="#3b82f6" stroke="white" strokeWidth={3} />
-          <circle cx={cx} cy={cy} r={12} fill="none" stroke="#3b82f6" strokeWidth={2} strokeOpacity={0.3}>
-            <animate attributeName="r" values="12;18;12" dur="2s" repeatCount="indefinite" />
-            <animate attributeName="stroke-opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite" />
-          </circle>
-        </g>
-      );
-    }
-    
-    return <circle cx={cx} cy={cy} r={4} fill={dataKey === 'plannedDepth' ? '#f97316' : '#3b82f6'} />;
-  };
+        // Logique pour le point clignotant (dernier point réel)
+        if (dataKey === 'actualDepth' && payload.actualDepth === currentDepth && payload.day === currentDay) {
+          return (
+            <g>
+              <circle cx={cx} cy={cy} r={8} fill="#3b82f6" stroke="white" strokeWidth={3} />
+              <circle cx={cx} cy={cy} r={12} fill="none" stroke="#3b82f6" strokeWidth={2} strokeOpacity={0.3}>
+                <animate attributeName="r" values="12;18;12" dur="2s" repeatCount="indefinite" />
+                <animate attributeName="stroke-opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite" />
+              </circle>
+            </g>
+          );
+        }
+        
+        // Dessine un point normal pour les autres cas où la valeur n'est pas nulle
+        return <circle cx={cx} cy={cy} r={4} fill={dataKey === 'plannedDepth' ? '#f97316' : '#3b82f6'} />;
+      };
 
   // Chart dimensions in pixels (relative to the container)
   const CHART_WIDTH = 320;
@@ -218,7 +229,7 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
   // }).join(' ');
 
   return (
-    <Card className="w-[480px] shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+    <Card className="w-[450px] shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
     <CardHeader className="pb-2">
       <CardTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
         <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"></div>
@@ -227,15 +238,15 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
       <div className="flex items-center gap-4 text-sm text-gray-600">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-          <span>Planifié: {overallPlannedDays} jours</span>
+          <span className="text-[13px]">Planifié: {overallPlannedDays} jours</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-          <span>TD: {well.totalDepth}ft</span>
+          <span className="text-[13px]">TD: {well.totalDepth}ft</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-          <span>Progression: {progressPercentage.toFixed(1)}%</span>
+          <span className="text-[13px]">Progression: {progressPercentage.toFixed(1)}%</span>
         </div>
       </div>
     </CardHeader>
@@ -243,20 +254,7 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
       <div className="relative h-96 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-6 border border-slate-200 shadow-inner">
         
         {/* Current Status Indicator */}
-        {actualChartPoints.length > 0 && (
-          <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-gray-200 z-10">
-            <div className="text-xs font-semibold text-gray-700 mb-1">Statut Actuel</div>
-            <div className="text-sm font-bold text-blue-600">
-              Jour {currentDay} - {currentDepth.toFixed(0)}ft
-            </div>
-            <div className="w-16 bg-gray-200 rounded-full h-1.5 mt-2">
-              <div 
-                className="bg-gradient-to-r from-blue-500 to-green-500 h-1.5 rounded-full transition-all duration-300"
-                style={{ width: `${Math.min(100, progressPercentage)}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
+        
 
         {/* Core Info */}
         {well.coreInfo && (
@@ -265,18 +263,15 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
           </div>
         )}
 
+
+        
         {/* Recharts Graph */}
-        <div className="h-80 mt-8">
+        <div className="h-[350px] w-[400px] mt-8 pr-6">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={combinedData}
               margin={{
-                top: 20,
-                right: 30,
-                left: 40,
-                bottom: 60,
-              }}
-            >
+                right: 30,}}>
               <defs>
                 <linearGradient id="plannedGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#f97316" stopOpacity={0.8}/>
@@ -294,45 +289,39 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
                 strokeOpacity={0.6}
               />
               
-              <XAxis 
-                dataKey="day"
-                type="number"
-                scale="linear"
-                domain={['dataMin', 'dataMax']}
-                tick={{ fontSize: 12, fill: '#64748b' }}
-                axisLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
-                tickLine={{ stroke: '#94a3b8' }}
-              />
-              
-              <YAxis 
-                tick={{ fontSize: 12, fill: '#64748b' }}
-                axisLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
-                tickLine={{ stroke: '#94a3b8' }}
-                label={{ 
-                  value: 'Profondeur (Pieds)', 
-                  angle: -90, 
-                  position: 'insideLeft',
-                  style: { textAnchor: 'middle', fill: '#64748b', fontSize: '12px', fontWeight: 'bold' }
-                }}
-              />
+              <XAxis
+    dataKey="day"
+    type="number"
+    scale="linear"
+    domain={['dataMin', 'dataMax']}
+    tick={{ fontSize: 12, fill: '#64748b' }}
+    axisLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
+    tickLine={{ stroke: '#94a3b8' }}
+    label={{ // Ajout du label pour l'axe X
+      value: 'Temps (Jours)', // Le texte du label
+      position: 'bottom', // Position du label (peut être 'insideBottom', 'top', etc.)
+      offset: 0, // Ajuste la distance du label par rapport à l'axe
+      style: { textAnchor: 'middle', fill: '#64748b', fontSize: '12px', fontWeight: 'bold' }
+    }}
+  />
+  
+  <YAxis
+    tick={{ fontSize: 12, fill: '#64748b' }}
+    axisLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
+    tickLine={{ stroke: '#94a3b8' }}
+    label={{ // Réintroduction du label pour l'axe Y
+      value: 'Profondeur (Pieds)', // Le texte du label
+      angle: -90, // Pour le faire apparaître verticalement
+      position: 'insideLeft', // Position du label (peut être 'outsideLeft', 'left', etc.)
+      style: { textAnchor: 'middle', fill: '#64748b', fontSize: '12px', fontWeight: 'bold' }
+    }}
+  />
               
               <Tooltip content={<CustomTooltip />} />
               
               <Legend 
                 wrapperStyle={{ paddingTop: '20px' }}
                 iconType="line"
-              />
-
-              {/* Planned Line */}
-              <Line
-                type="linear"
-                dataKey="plannedDepth"
-                stroke="#f97316"
-                strokeWidth={3}
-                dot={<CustomDot />}
-                connectNulls={false}
-                name="Planifié"
-                fill="url(#plannedGradient)"
               />
 
               {/* Actual Line */}
@@ -342,8 +331,8 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
                 stroke="#3b82f6"
                 strokeWidth={3}
                 dot={<CustomDot />}
-                connectNulls={false}
-                name="Réel"
+                connectNulls={true}
+                name="Profondeur actuelle en ft"
                 fill="url(#actualGradient)"
               />
             </LineChart>
@@ -351,22 +340,24 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
         </div>
 
         {/* Axis Labels */}
-        <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-sm font-semibold text-gray-700 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-200">
-          Temps (Jours)
-        </div>
+        
       </div>
 
       {/* Modern Legend */}
-      <div className="flex justify-center gap-8 mt-4 p-4 bg-white rounded-lg shadow-sm border border-gray-100">
-        <div className="flex items-center gap-3">
-          <div className="w-4 h-4 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 shadow-sm"></div>
-          <span className="text-sm font-medium text-gray-700">Planifié</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="w-4 h-4 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 shadow-sm"></div>
-          <span className="text-sm font-medium text-gray-700">Réel</span>
-        </div>
-      </div>
+      {actualChartPoints.length > 0 && (
+          <div className=" top-4 left-4 mt-10  p-3  z-10">
+            <div className="text-xs font-semibold text-gray-700 mb-1">Statut Actuel</div>
+            <div className="text-sm font-bold text-blue-600">
+              Jour {currentDay} - {currentDepth.toFixed(0)}ft
+            </div>
+            <div className="w-16 bg-gray-200 rounded-full h-1.5 mt-2">
+              <div 
+                className="bg-gradient-to-r from-blue-500 to-green-500 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(100, progressPercentage)}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
     </CardContent>
   </Card>
   );
@@ -380,6 +371,10 @@ export function WellDetails({ wellId }: WellDetailsProps) {
   const [error, setError] = useState<string | null>(null);
   const [phaseData, setPhaseData] = useState<PhaseItem[]>([]);
   const [phaseLoading, setPhaseLoading] = useState(true);
+  const lastPhase = phaseData.length > 0 ? phaseData[phaseData.length - 1] : null;
+
+    const totalPlannedDaysFinal = lastPhase ? lastPhase.delaiPrevu : 0; // Ou une valeur par défaut appropriée
+    const totalActualDaysFinal = lastPhase ? lastPhase.delaiReel : 0; // Ou une valeur par défaut appropriée
 
   // Fetch well details
   useEffect(() => {
@@ -626,7 +621,7 @@ export function WellDetails({ wellId }: WellDetailsProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Cost */}
               <div className="text-center">
-                <h3 className="text-lg font-semibold mb-4">Coût</h3>
+                <h3 className="text-lg font-semibold  mb-4">Coût</h3>
                 <div className="relative w-32 h-32 mx-auto mb-4">
                   <svg className="w-full h-full transform -rotate-90">
                     <circle cx="64" cy="64" r="56" stroke="#f3f4f6" strokeWidth="12" fill="none" />
@@ -644,7 +639,7 @@ export function WellDetails({ wellId }: WellDetailsProps) {
 
                       // Clamp between 0 and 100 for display
                       const displayCostProgress = Math.min(100, Math.max(0, costProgress));
-                      const strokeColor = costProgress > 100 ? '#ef4444' : '#f59e0b'; // Red if over budget, orange otherwise
+                      const strokeColor = costProgress > 100 ? '#ef4444' : '#10b981'; // Red if over budget, orange otherwise
 
                       return (
                         <circle
@@ -693,9 +688,9 @@ export function WellDetails({ wellId }: WellDetailsProps) {
                       const totalDelaiReel = phaseData.reduce((sum, phase) => sum + phase.delaiReel, 0);
                       
                       let delayProgress = 0;
-                      if (totalDelaiPrevu > 0) {
-                        delayProgress = (totalDelaiReel / totalDelaiPrevu) * 100;
-                      } else if (totalDelaiReel > 0) {
+                      if (totalActualDaysFinal > 0) {
+                        delayProgress = (totalActualDaysFinal / totalPlannedDaysFinal) * 100;
+                      } else if (totalActualDaysFinal > 0) {
                           delayProgress = 100; // If no planned delay but actual delay exists
                       }
 
@@ -721,19 +716,18 @@ export function WellDetails({ wellId }: WellDetailsProps) {
                     <span className="text-2xl font-bold">
                       {/* Display a simple percentage or actual vs planned */}
                       {(() => {
-                          const totalDelaiPrevu = phaseData.reduce((sum, p) => sum + p.delaiPrevu, 0);
-                          const totalDelaiReel = phaseData.reduce((sum, p) => sum + p.delaiReel, 0);
-                          if (totalDelaiPrevu === 0 && totalDelaiReel === 0) return 'N/A';
-                          return `${((totalDelaiReel / (totalDelaiPrevu || 1)) * 100).toFixed(0)}%`;
+
+                          if (totalPlannedDaysFinal === 0 && totalActualDaysFinal === 0) return 'N/A';
+                          return `${((totalActualDaysFinal / (totalPlannedDaysFinal || 1)) * 100).toFixed(0)}%`;
                       })()}
                     </span>
                   </div>
                 </div>
                 <p className="text-sm text-gray-600">
-                  Prévu: {phaseData.reduce((sum, p) => sum + p.delaiPrevu, 0)} jours
+                  Prévu: {totalPlannedDaysFinal} jours
                 </p>
                 <p className="text-sm text-gray-600">
-                  Réel: {phaseData.reduce((sum, p) => sum + p.delaiReel, 0)} jours
+                  Réel: {totalActualDaysFinal} jours
                 </p>
               </div>
             </div>
@@ -836,7 +830,7 @@ export function WellDetails({ wellId }: WellDetailsProps) {
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <div className=" bg-gradient-to-b w-[220px] from-orange-600 to-orange-800 rounded-tr-3xl text-white">
+      <div className=" bg-gradient-to-b h-screen fixed w-[230px] from-orange-600 to-orange-800 rounded-tr-3xl text-white">
         <nav className="mt-8">
           {sidebarItems.map((item) => {
             const Icon = item.icon
@@ -858,7 +852,7 @@ export function WellDetails({ wellId }: WellDetailsProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex w-5/6 flex-col ml-[220px]">
         <div className="bg-white border-b border-gray-200 px-6 py-4">
           <h1 className="text-2xl font-bold text-gray-900">{getPageTitle()}</h1>
         </div>
