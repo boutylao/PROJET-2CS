@@ -35,18 +35,25 @@ export default function HistoriqueRapportsClient(): React.JSX.Element {
     fetch('http://localhost:8099/api/reports')
       .then((res) => res.json())
       .then((data) => {
-        const mapped = data.map((item: any): Operation => ({
-          id: `REP-${item.id}`,
-          name: '',
-          drillingSite: item.puitName || 'Non spécifié',
-          operationType: item.phase || 'N/A',
-          date: new Date(item.date),
-          time: item.operations?.[0]?.startTime?.substring(0, 5) || '00:00',
-          reportUrl: `http://localhost:8099/api/reports/${item.id}/download`,
-          createdAt: new Date(item.date),
-          excelFile: item.excelFile,
-
-        }));
+        const mapped = data.map((item: any): Operation => {
+          const now = new Date(); // Heure actuelle locale
+          const dateObj = new Date(item.date); // Date de création (si dispo)
+          return {
+            id: `REP-${item.id}`,
+            name: '',
+            drillingSite: item.puitName || 'Non spécifié',
+            operationType: item.phase || 'N/A',
+            date: dateObj,
+            time: now.toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false, // Affichage en 24h
+            }),
+            reportUrl: `http://localhost:8099/api/reports/${item.id}/download`,
+            createdAt: dateObj,
+            excelFile: item.excelFile,
+          };
+        });
         setAllOperations(mapped);
       })
       .catch((err) => console.error('Erreur chargement rapports:', err))

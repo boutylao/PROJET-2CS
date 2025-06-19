@@ -66,7 +66,7 @@ export default function RapportsPage() {
   const handleAddPuit = async () => {
     if (!newPuit.puitId || !newPuit.puitName) return
     try {
-      const res = await fetch("http://localhost:8099/api/puits", {
+      const res = await fetch("http://localhost:8098/api/puits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newPuit)
