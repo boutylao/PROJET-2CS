@@ -171,20 +171,7 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
           <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"></div>
           Visualisation de l'avancement global
         </CardTitle>
-        <div className="flex items-center gap-4 text-sm text-gray-600">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-            <span className="text-[13px]">Planifié: {overallPlannedDays} jours</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-[13px]">TD: {well.totalDepth}ft</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span className="text-[13px]">Progression: {progressPercentage.toFixed(1)}%</span>
-          </div>
-        </div>
+        
       </CardHeader>
       <CardContent className="pt-4">
         <div className="relative h-96 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-6 border border-slate-200 shadow-inner">
@@ -256,21 +243,6 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
               </RechartsLineChart>
             </ResponsiveContainer>
           </div>
-
-          {/* {actualChartPoints.length > 0 && (
-            <div className="top-4 left-4 mt-10 p-3 z-10">
-              <div className="text-xs font-semibold text-gray-700 mb-1">Statut Actuel</div>
-              <div className="text-sm font-bold text-blue-600">
-                Jour {currentDay} - {currentDepth.toFixed(0)}ft
-              </div>
-              <div className="w-16 bg-gray-200 rounded-full h-1.5 mt-2">
-                <div
-                  className="bg-gradient-to-r from-blue-500 to-green-500 h-1.5 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min(100, progressPercentage)}%` }}
-                ></div>
-              </div>
-            </div>
-          )} */}
         </div>
       </CardContent>
     </Card>
@@ -287,7 +259,7 @@ export function Dashboard() {
   const [phaseData, setPhaseData] = useState<PhaseItem[]>([]);
   const [phaseLoading, setPhaseLoading] = useState(true);
   const [totalPlannedDaysFinal, setTotalPlannedDaysFinal] = useState(0);
-const [totalActualDaysFinal, setTotalActualDaysFinal] = useState(0);
+  const [totalActualDaysFinal, setTotalActualDaysFinal] = useState(0);
 
   // Fonction pour charger les compteurs KPI
   const loadKpiCounts = async () => {
@@ -319,55 +291,6 @@ const [totalActualDaysFinal, setTotalActualDaysFinal] = useState(0);
         setReportsData(reportsData);
       }
 
-      const loadSelectedWellData = async (wellId: string) => {
-        if (!wellId) return;
-      
-        try {
-          // Charger les rapports
-          const reportsResponse = await fetch(`http://localhost:8098/api/reports/puit/${wellId}`);
-          if (!reportsResponse.ok) {
-            console.warn(`Could not fetch reports for ${wellId}: Status ${reportsResponse.status}`);
-            setReportsData([]);
-          } else {
-            const reportsData: ReportItem[] = await reportsResponse.json();
-            setReportsData(reportsData);
-          }
-      
-          // Charger les données de phase
-          setPhaseLoading(true);
-          const phases = ['26"', '16"', '12"', '8"'];
-          const phasePromises = phases.map(async (phaseName) => {
-            try {
-              const phaseUrl = `http://localhost:8098/previsions/etat-par-phase/${wellId}/${phaseName}`;
-              const phaseResponse = await fetch(phaseUrl);
-              if (!phaseResponse.ok) {
-                console.warn(`Could not fetch phase data for ${phaseName}: Status ${phaseResponse.status}`);
-                return null;
-              }
-              return await phaseResponse.json();
-            } catch (e) {
-              console.error(`Error fetching phase ${phaseName}:`, e);
-              return null;
-            }
-          });
-      
-          const phaseResults = await Promise.all(phasePromises);
-          const validPhases = phaseResults.filter((phase): phase is PhaseItem => phase !== null);
-          setPhaseData(validPhases);
-      
-          // Calculer les totaux de jours
-          if (validPhases.length > 0) {
-            const lastPhase = validPhases[validPhases.length - 1];
-            setTotalPlannedDaysFinal(lastPhase.delaiPrevu);
-            setTotalActualDaysFinal(lastPhase.delaiReel);
-          }
-        } catch (err) {
-          console.error("Error fetching well data:", err);
-        } finally {
-          setPhaseLoading(false);
-        }
-      };
-      
       // Charger les données de phase
       setPhaseLoading(true);
       const phases = ['26"', '16"', '12"', '8"'];
@@ -387,7 +310,15 @@ const [totalActualDaysFinal, setTotalActualDaysFinal] = useState(0);
       });
 
       const phaseResults = await Promise.all(phasePromises);
-      setPhaseData(phaseResults.filter((phase): phase is PhaseItem => phase !== null));
+      const validPhases = phaseResults.filter((phase): phase is PhaseItem => phase !== null);
+      setPhaseData(validPhases);
+
+      // Calculer les totaux de jours
+      if (validPhases.length > 0) {
+        const lastPhase = validPhases[validPhases.length - 1];
+        setTotalPlannedDaysFinal(lastPhase.delaiPrevu);
+        setTotalActualDaysFinal(lastPhase.delaiReel);
+      }
     } catch (err) {
       console.error("Error fetching well data:", err);
     } finally {
@@ -469,6 +400,11 @@ const [totalActualDaysFinal, setTotalActualDaysFinal] = useState(0);
 
   return (
     <div className="w-5/6 ml-[240px] p-6 space-y-6">
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+       {kpiData.map((kpi, index) => (
+  <KPICard key={index} {...kpi} />
+))}
+      </div>
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-orange-600">Dashboard</h1>
        
@@ -523,13 +459,139 @@ const [totalActualDaysFinal, setTotalActualDaysFinal] = useState(0);
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {kpiData.map((kpi, index) => (
-          <KPICard key={index} {...kpi} />
-        ))}
+     
+
+      {/* Carte géographique en haut */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="h-[280px]">
+          <CardHeader>
+            <CardTitle>
+              <p className="text-[16px]">Carte Géographique des Puits</p>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <GeographicMap />
+          </CardContent>
+        </Card>
+
+        {/* Délai & Coût du sondage global à côté de la carte */}
+        {selectedWell && !phaseLoading && (
+          <Card className="w-4/3">
+            <CardHeader>
+              <CardTitle className="text-lg">Délai & Coût du sondage global</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Coût */}
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold mb-4">Coût</h3>
+                  <div className="relative w-32 h-32 mx-auto mb-4">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle cx="64" cy="64" r="56" stroke="#f3f4f6" strokeWidth="12" fill="none" />
+                      {(() => {
+                        const totalCoutPrevu = phaseData.reduce((sum, phase) => sum + phase.coutPrevu, 0);
+                        const totalCoutReel = phaseData.reduce((sum, phase) => sum + phase.coutReel, 0);
+                        
+                        let costProgress = 0;
+                        if (totalCoutPrevu > 0) {
+                          costProgress = (totalCoutReel / totalCoutPrevu) * 100;
+                        } else if (totalCoutReel > 0) {
+                          costProgress = 100;
+                        }
+
+                        const displayCostProgress = Math.min(100, Math.max(0, costProgress));
+                        const strokeColor = costProgress > 100 ? '#ef4444' : '#10b981';
+
+                        return (
+                          <circle
+                            cx="64"
+                            cy="64"
+                            r="56"
+                            stroke={strokeColor}
+                            strokeWidth="12"
+                            fill="none"
+                            strokeDasharray={`${displayCostProgress * 3.51} 351`}
+                            strokeLinecap="round"
+                          />
+                        );
+                      })()}
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-2xl font-bold">
+                        {(() => {
+                          const totalCoutPrevu = phaseData.reduce((sum, phase) => sum + phase.coutPrevu, 0);
+                          const totalCoutReel = phaseData.reduce((sum, phase) => sum + phase.coutReel, 0);
+                          if (totalCoutPrevu === 0 && totalCoutReel === 0) return 'N/A';
+                          return `${((totalCoutReel / (totalCoutPrevu || 1)) * 100).toFixed(0)}%`;
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Prévu: {phaseData.reduce((sum, p) => sum + p.coutPrevu, 0).toLocaleString('fr-FR', { style: 'currency', currency: 'USD' })}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Réel: {phaseData.reduce((sum, p) => sum + p.coutReel, 0).toLocaleString('fr-FR', { style: 'currency', currency: 'USD' })}
+                  </p>
+                </div>
+
+                {/* Délai */}
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold mb-4">Délai</h3>
+                  <div className="relative w-32 h-32 mx-auto mb-4">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle cx="64" cy="64" r="56" stroke="#f3f4f6" strokeWidth="12" fill="none" />
+                      {(() => {
+                        const totalDelaiPrevu = phaseData.reduce((sum, phase) => sum + phase.delaiPrevu, 0);
+                        const totalDelaiReel = phaseData.reduce((sum, phase) => sum + phase.delaiReel, 0);
+                        
+                        let delayProgress = 0;
+                        if (totalActualDaysFinal > 0) {
+                          delayProgress = (totalActualDaysFinal / totalPlannedDaysFinal) * 100;
+                        } else if (totalActualDaysFinal > 0) {
+                          delayProgress = 100;
+                        }
+
+                        const displayDelayProgress = Math.min(100, Math.max(0, delayProgress));
+                        const strokeColor = delayProgress > 100 ? '#ef4444' : '#10b981';
+
+                        return (
+                          <circle
+                            cx="64"
+                            cy="64"
+                            r="56"
+                            stroke={strokeColor}
+                            strokeWidth="12"
+                            fill="none"
+                            strokeDasharray={`${displayDelayProgress * 3.51} 351`}
+                            strokeLinecap="round"
+                          />
+                        );
+                      })()}
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-2xl font-bold">
+                        {(() => {
+                          if (totalPlannedDaysFinal === 0 && totalActualDaysFinal === 0) return 'N/A';
+                          return `${((totalActualDaysFinal / (totalPlannedDaysFinal || 1)) * 100).toFixed(0)}%`;
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Prévu: {totalPlannedDaysFinal} jours
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Réel: {totalActualDaysFinal} jours
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {/* Section avec le graphique d'avancement */}
+      {/* Visualisation de l'avancement global en bas */}
       {selectedWell && (
         <div className="grid grid-cols-1 gap-6">
           {phaseLoading ? (
@@ -546,132 +608,6 @@ const [totalActualDaysFinal, setTotalActualDaysFinal] = useState(0);
           )}
         </div>
       )}
-{selectedWell && !phaseLoading && (
-  <Card>
-    <CardHeader>
-      <CardTitle className="text-lg">Délai & Coût du sondage global</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Coût */}
-        <div className="text-center">
-          <h3 className="text-lg font-semibold mb-4">Coût</h3>
-          <div className="relative w-32 h-32 mx-auto mb-4">
-            <svg className="w-full h-full transform -rotate-90">
-              <circle cx="64" cy="64" r="56" stroke="#f3f4f6" strokeWidth="12" fill="none" />
-              {(() => {
-                const totalCoutPrevu = phaseData.reduce((sum, phase) => sum + phase.coutPrevu, 0);
-                const totalCoutReel = phaseData.reduce((sum, phase) => sum + phase.coutReel, 0);
-                
-                let costProgress = 0;
-                if (totalCoutPrevu > 0) {
-                  costProgress = (totalCoutReel / totalCoutPrevu) * 100;
-                } else if (totalCoutReel > 0) {
-                  costProgress = 100;
-                }
-
-                const displayCostProgress = Math.min(100, Math.max(0, costProgress));
-                const strokeColor = costProgress > 100 ? '#ef4444' : '#10b981';
-
-                return (
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="56"
-                    stroke={strokeColor}
-                    strokeWidth="12"
-                    fill="none"
-                    strokeDasharray={`${displayCostProgress * 3.51} 351`}
-                    strokeLinecap="round"
-                  />
-                );
-              })()}
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-2xl font-bold">
-                {(() => {
-                  const totalCoutPrevu = phaseData.reduce((sum, phase) => sum + phase.coutPrevu, 0);
-                  const totalCoutReel = phaseData.reduce((sum, phase) => sum + phase.coutReel, 0);
-                  if (totalCoutPrevu === 0 && totalCoutReel === 0) return 'N/A';
-                  return `${((totalCoutReel / (totalCoutPrevu || 1)) * 100).toFixed(0)}%`;
-                })()}
-              </span>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600">
-            Prévu: {phaseData.reduce((sum, p) => sum + p.coutPrevu, 0).toLocaleString('fr-FR', { style: 'currency', currency: 'USD' })}
-          </p>
-          <p className="text-sm text-gray-600">
-            Réel: {phaseData.reduce((sum, p) => sum + p.coutReel, 0).toLocaleString('fr-FR', { style: 'currency', currency: 'USD' })}
-          </p>
-        </div>
-
-        {/* Délai */}
-        <div className="text-center">
-          <h3 className="text-lg font-semibold mb-4">Délai</h3>
-          <div className="relative w-32 h-32 mx-auto mb-4">
-            <svg className="w-full h-full transform -rotate-90">
-              <circle cx="64" cy="64" r="56" stroke="#f3f4f6" strokeWidth="12" fill="none" />
-              {(() => {
-                const totalDelaiPrevu = phaseData.reduce((sum, phase) => sum + phase.delaiPrevu, 0);
-                const totalDelaiReel = phaseData.reduce((sum, phase) => sum + phase.delaiReel, 0);
-                
-                let delayProgress = 0;
-                if (totalActualDaysFinal > 0) {
-                  delayProgress = (totalActualDaysFinal / totalPlannedDaysFinal) * 100;
-                } else if (totalActualDaysFinal > 0) {
-                  delayProgress = 100;
-                }
-
-                const displayDelayProgress = Math.min(100, Math.max(0, delayProgress));
-                const strokeColor = delayProgress > 100 ? '#ef4444' : '#10b981';
-
-                return (
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="56"
-                    stroke={strokeColor}
-                    strokeWidth="12"
-                    fill="none"
-                    strokeDasharray={`${displayDelayProgress * 3.51} 351`}
-                    strokeLinecap="round"
-                  />
-                );
-              })()}
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-2xl font-bold">
-                {(() => {
-                  if (totalPlannedDaysFinal === 0 && totalActualDaysFinal === 0) return 'N/A';
-                  return `${((totalActualDaysFinal / (totalPlannedDaysFinal || 1)) * 100).toFixed(0)}%`;
-                })()}
-              </span>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600">
-            Prévu: {totalPlannedDaysFinal} jours
-          </p>
-          <p className="text-sm text-gray-600">
-            Réel: {totalActualDaysFinal} jours
-          </p>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-)}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="h-[280px]">
-          <CardHeader>
-            <CardTitle>
-              <p className="text-[16px]">Carte Géographique des Puits</p>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <GeographicMap />
-          </CardContent>
-        </Card>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>

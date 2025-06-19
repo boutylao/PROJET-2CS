@@ -229,7 +229,7 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
   // }).join(' ');
 
   return (
-    <Card className="w-[450px] shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+    <Card className="w-[500px] shadow-lg border-0 bg-gradient-to-br mr-[600px] from-white to-gray-50">
     <CardHeader className="pb-2">
       <CardTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
         <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"></div>
@@ -266,7 +266,7 @@ const WellProgressChart = ({ well, reports, phaseData }: { well: Well, reports: 
 
         
         {/* Recharts Graph */}
-        <div className="h-[350px] w-[400px] mt-8 pr-6">
+        <div className="h-[355px] w-[450px] mt-8 pr-6">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={combinedData}
@@ -520,12 +520,12 @@ export function WellDetails({ wellId }: WellDetailsProps) {
 
   const renderVisualisationContent = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 w-[930px]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 w-[1100px]">
         {/* Progress Chart - Pass reportsData and phaseData */}
         <WellProgressChart well={well} reports={reportsData} phaseData={phaseData} />
 
         {/* Well Architecture */}
-        <Card className="w-[550px]">
+        <Card className="w-[600px]">
           <CardHeader>
             <CardTitle className="text-lg">Architecture du sondage du puit {well.puitId}
               <div className="flex text-sm font-normal pt-4"> <p>Phase </p>
@@ -565,9 +565,9 @@ export function WellDetails({ wellId }: WellDetailsProps) {
                 <div className="h-[400px] w-[350px] flex items-start">
                   <div className="relative w-full h-[300px]">
                     {/* Parois vertes gauche */}
-                    <div className="absolute left-[40px] w-[20px] h-[60px] top-0 bg-yellow-400 z-10" />
-                    <div className="absolute left-[65px] w-[20px] h-[110px] top-0 bg-yellow-400 z-10" />
-                    <div className="absolute left-[90px] w-[20px] h-[175px] top-0 bg-yellow-400 z-10" />
+                    <div className="absolute left-[57px] w-[20px] h-[60px] top-0 bg-yellow-400 z-10" />
+                    <div className="absolute left-[82px] w-[20px] h-[110px] top-0 bg-yellow-400 z-10" />
+                    <div className="absolute left-[106px] w-[20px] h-[175px] top-0 bg-yellow-400 z-10" />
 
                     {/* Parois vertes droite */}
                     <div className="absolute right-[37px] w-[20px] h-[60px] top-0" style={{ backgroundColor: phaseData[0]?.depthReel < phaseData[0]?.depthPrevu ? 'red' : phaseData[0]?.depthReel > phaseData[0]?.depthPrevu ? 'green' : 'green', zIndex: 10 }} />
@@ -828,9 +828,9 @@ export function WellDetails({ wellId }: WellDetailsProps) {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen w-full">
       {/* Sidebar */}
-      <div className=" bg-gradient-to-b h-screen fixed w-[230px] from-orange-600 to-orange-800 rounded-tr-3xl text-white">
+      <div className=" bg-gradient-to-b h-screen fixed w-[300px] from-orange-600 to-orange-800 rounded-tr-3xl text-white">
         <nav className="mt-8">
           {sidebarItems.map((item) => {
             const Icon = item.icon
@@ -852,7 +852,7 @@ export function WellDetails({ wellId }: WellDetailsProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex w-5/6 flex-col ml-[220px]">
+      <div className="flex-1 flex w-5/6 flex-col ml-[330px]">
         <div className="bg-white border-b border-gray-200 px-6 py-4">
           <h1 className="text-2xl font-bold text-gray-900">{getPageTitle()}</h1>
         </div>

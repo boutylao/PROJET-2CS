@@ -12,6 +12,8 @@ interface ReportItem {
   phase: string
   depth: string
   date: string
+  expertAnalysis: String
+  recommendations: String
   drillingProgress: string
   day: string
   anomalies: string
@@ -164,6 +166,8 @@ export function WellReports({ wellId }: WellReportsProps) {
 
                 <TableHead className="text-gray-600 font-medium">Phase</TableHead>
                 <TableHead className="text-gray-600 font-medium">Anomalies</TableHead>
+                <TableHead className="text-gray-600 font-medium">Analyse Expert</TableHead>
+                <TableHead className="text-gray-600 font-medium">Recommandation Expert</TableHead>
                 <TableHead className="text-gray-600 font-medium">Rapport</TableHead>
               </TableRow>
             </TableHeader>
@@ -174,7 +178,11 @@ export function WellReports({ wellId }: WellReportsProps) {
                   <TableCell className="font-medium">{item.plannedOperation}</TableCell>
                   <TableCell>{item.date}</TableCell>
                   <TableCell>{item.phase}</TableCell>
-                  <TableCell>{item.anomalies}</TableCell>
+                  <TableCell>{item.remarks}</TableCell>
+                  <TableCell>{item.expertAnalysis ? item.expertAnalysis : '-'}</TableCell>
+<TableCell>{item.recommendations ? item.recommendations : '-'}</TableCell>
+
+
 
                   <TableCell>
                     <Button
@@ -214,32 +222,7 @@ export function WellReports({ wellId }: WellReportsProps) {
       </div> */}
 
       {/* Barres de progression */}
-      <Card>
-        <CardContent className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Répartition des rapports par opération</h3>
-          <div className="space-y-4">
-            {["Forage", "Mud logging", "Logging", "Testing", "VSP"].map((operation) => {
-              const count = reportsData.filter((r) => r.plannedOperation === operation).length
-              const percentage = reportsData.length ? (count / reportsData.length) * 100 : 0
-
-              return (
-                <div key={operation} className="flex items-center space-x-4">
-                  <div className="w-24 text-sm font-medium">{operation}</div>
-                  <div className="flex-1">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>{count} rapports</span>
-                      <span>{percentage.toFixed(1)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="h-2 rounded-full bg-orange-500" style={{ width: `${percentage}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      
 
       {/* Timeline */}
       <Card>
